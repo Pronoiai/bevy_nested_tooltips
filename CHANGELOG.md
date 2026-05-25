@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.1
+- Silence potential expected error on startup.
+
 ## 0.3.0
 - Update to bevy 0.18
 - Observers to only spawned for their usecase

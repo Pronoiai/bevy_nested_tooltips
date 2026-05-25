@@ -487,8 +487,9 @@ struct HoverLinkQuery {
 }
 
 /// Removes hover timer when user's pointer has left.
+#[track_caller]
 fn hover_cancel_spawn(hover: On<Pointer<Out>>, mut commands: Commands) {
-    r!(commands.get_entity(hover.entity)).remove::<TooltipLinkTimer>();
+    rq!(commands.get_entity(hover.entity)).remove::<TooltipLinkTimer>();
 }
 
 #[derive(QueryData)]
