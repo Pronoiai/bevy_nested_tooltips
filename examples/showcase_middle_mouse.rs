@@ -72,7 +72,7 @@ fn spawn_scene(mut commands: Commands) {
                 children![(
                     Text::new("Bevy nested tooltips!"),
                     TextFont {
-                        font_size: 50.,
+                        font_size: FontSize::Px(50.),
                         ..Default::default()
                     }
                 )]
@@ -236,7 +236,7 @@ fn query_style(
         .get_entity(tooltip_info.title_text)
         .unwrap()
         .insert(TextFont {
-            font_size: 40.,
+            font_size: FontSize::Px(40.),
             ..Default::default()
         });
 

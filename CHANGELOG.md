@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.4.0
+- Update to bevy 0.19
+
 ## 0.3.1
 - Silence potential expected error on startup.
 
