@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+- Locked tooltips can now be moved by clicking and dragging
+
+
 ## 0.4.0
 - Update to bevy 0.19
 

@@ -16,6 +16,7 @@ This library strives to handle the logic behind common tooltip features, while y
 - Despawns if the user hasn't interacted with them in a configurable time period, or they mouse away after interacting with them.
 - Locking by pressing of the middle mouse button. using observers you can implement your specific design to inform your users.
 - Highlight other Entites using a linked text, highlight designs are up to you.
+- Tooltips that are locked can be clicked and dragged around.
 
 ## Usage
 

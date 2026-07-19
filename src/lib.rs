@@ -152,15 +152,15 @@ use bevy_log::error;
 use bevy_math::{Rect, Vec2};
 use bevy_picking::{
     Pickable,
-    events::{Move, Out, Pointer, Press},
+    events::{Drag, Move, Out, Pointer, Press},
     pointer::PointerButton,
 };
 use bevy_platform::collections::HashMap;
 use bevy_text::TextSpan;
 use bevy_time::{Time, Timer, TimerMode};
 use bevy_ui::{
-    Display, GlobalZIndex, GridAutoFlow, Node, PositionType, RelativeCursorPosition, UiRect, Val,
-    widget::Text,
+    ComputedNode, Display, GlobalZIndex, GridAutoFlow, Node, PositionType, RelativeCursorPosition,
+    UiRect, Val, widget::Text,
 };
 use bevy_window::Window;
 use tiny_bail::prelude::*;
@@ -247,7 +247,7 @@ impl Default for ActivationMethod {
 #[derive(Resource, Debug)]
 pub struct TooltipReference {
     /// Top level Node this will be copied to the [`Tooltip`] positions will be overwritten
-    tooltip_node: Node,
+    pub tooltip_node: Node,
 }
 
 impl TooltipReference {
@@ -443,6 +443,7 @@ fn setup_component_hooks(world: &mut World) {
                 .commands()
                 .entity(entity)
                 .observe(toggle_lock)
+                .observe(move_locked_tooltip)
                 .observe(hover_debounce)
                 .observe(hover_despawn);
         },
@@ -820,4 +821,37 @@ fn toggle_lock(
             r!(commands.get_entity(press.entity)).insert(TooltipLocked);
         }
     }
+}
+
+#[derive(QueryData)]
+#[query_data(mutable)]
+struct MoveLockedQuery {
+    tooltip: &'static Tooltip,
+    locked: Has<TooltipLocked>,
+    node: &'static mut Node,
+    computed_node: &'static ComputedNode,
+}
+
+/// Locked tooltips can be moved by clicking and dragging
+fn move_locked_tooltip(drag: On<Pointer<Drag>>, mut tooltip_query: Query<MoveLockedQuery>) {
+    if drag.button != PointerButton::Primary {
+        return;
+    }
+    let tooltip_item = r!(tooltip_query.get_mut(drag.entity));
+    if !tooltip_item.locked {
+        return;
+    }
+
+    let width = tooltip_item.computed_node.size.x / 3.;
+    let height = tooltip_item.computed_node.size.y / 3.;
+
+    let x = drag.pointer_location.position.x - width;
+    let y = drag.pointer_location.position.y - height;
+
+    let mut node = tooltip_item.node;
+
+    node.left = Val::Px(x);
+    node.right = Val::Auto;
+    node.top = Val::Px(y);
+    node.bottom = Val::Auto;
 }
