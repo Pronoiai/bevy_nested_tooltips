@@ -145,14 +145,14 @@ use bevy_ecs::{
     resource::Resource,
     schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
     system::{Commands, Query, Res},
-    world::World,
+    world::{DeferredWorld, World},
 };
 
 use bevy_log::error;
 use bevy_math::{Rect, Vec2};
 use bevy_picking::{
     Pickable,
-    events::{Drag, Move, Out, Pointer, Press},
+    events::{Drag, Move, Out, Over, Pointer, Press},
     pointer::PointerButton,
 };
 use bevy_platform::collections::HashMap;
@@ -277,15 +277,15 @@ impl Default for TooltipReference {
 /// The entity that spawned it is blocked from spawning another tooltip
 /// until this one is finished to prevent tooltip jumping around.
 #[derive(Debug, Component)]
-#[require(RelativeCursorPosition)]
+#[require(RelativeCursorPosition, TooltipPointerPresence)]
 pub struct Tooltip {
-    entity: Entity,
+    from_entity: Entity,
 }
 
 impl Tooltip {
     /// The entity that spawned this tooltip
     pub fn entity(&self) -> Entity {
-        self.entity
+        self.from_entity
     }
 }
 
@@ -328,6 +328,23 @@ pub struct TooltipLinkTimer {
 #[derive(Event)]
 struct TooltipLinkTimeElapsed {
     term_entity: Entity,
+}
+
+/// Indicates that the pointer has left this link, added when a tooltip is spawned
+/// This is used to stop the tooltip from despawning
+///
+#[derive(Component, Debug, Default, PartialEq)]
+#[component(on_insert = tooltip_presence)]
+enum TooltipPointerPresence {
+    #[default]
+    On,
+    Left,
+}
+
+fn tooltip_presence(mut world: DeferredWorld, HookContext { entity, .. }: HookContext) {
+    r!(world.commands().get_entity(entity))
+        .observe(pointer_left_link)
+        .observe(pointer_over_link);
 }
 
 /// The data of your tooltips.
@@ -513,6 +530,7 @@ struct HoverWaitQuery {
 fn tick_timers(
     mut links_query: Query<SpawnLinksQuery>,
     mut wait_for_query: Query<HoverWaitQuery>,
+    pointer_presence_query: Query<&TooltipPointerPresence>,
     time_res: Res<Time>,
     mut commands: Commands,
 ) {
@@ -526,6 +544,12 @@ fn tick_timers(
         }
     }
     for mut wait_for_item in &mut wait_for_query {
+        // Skip if the user is still hovering on the link
+        if let Ok(pointer) = pointer_presence_query.get(wait_for_item.tooltip.from_entity)
+            && *pointer == TooltipPointerPresence::On
+        {
+            continue;
+        }
         wait_for_item.wait_for.timer.tick(time_res.delta());
         if wait_for_item.wait_for.timer.is_finished() {
             c!(commands.get_entity(wait_for_item.entity)).try_despawn();
@@ -601,10 +625,13 @@ struct TooltipQuery {
     debounced: Has<ToolTipDebounced>,
 }
 
-/// When user mouses out of [`ToolTip`] despawn it unless it has a nested tooltip.
+/// When user mouses out of [`ToolTip`] despawn it
+/// unless it has a nested tooltip or the cursor is still on the link
+#[allow(clippy::type_complexity)]
 fn hover_despawn(
     hover: On<Pointer<Out>>,
     tooltip_query: Query<TooltipQuery>,
+    link_query: Query<&'static TooltipPointerPresence>,
     mut commands: Commands,
 ) {
     let tooltip_item = r!(tooltip_query.get(hover.entity));
@@ -617,6 +644,14 @@ fn hover_despawn(
     if tooltip_item.relative_cursor.cursor_over {
         return;
     }
+
+    // If the user is still pointing to the definition then don't despawn
+    if let Ok(presence) = link_query.get(tooltip_item.tooltip.from_entity)
+        && *presence == TooltipPointerPresence::On
+    {
+        return;
+    }
+
     r!(commands.get_entity(hover.entity)).despawn();
 }
 
@@ -664,7 +699,7 @@ fn spawn_tooltip(
 ) {
     // Prevent the same entity having two existing tooltips spawned
     for (_, tooltip) in existing_tooltips_query {
-        if tooltip.entity == term_entity {
+        if tooltip.from_entity == term_entity {
             return;
         }
     }
@@ -704,7 +739,7 @@ fn spawn_tooltip(
     let mut tooltip_commands = commands.spawn((
         design_node,
         Tooltip {
-            entity: term_entity,
+            from_entity: term_entity,
         },
         TooltipWaitForHover {
             timer: Timer::new(
@@ -762,6 +797,8 @@ fn spawn_tooltip(
     });
     let tooltip_id = tooltip_commands.id();
 
+    r!(commands.get_entity(term_entity)).insert(TooltipPointerPresence::On);
+
     commands.trigger(TooltipSpawned { entity: tooltip_id });
 }
 
@@ -799,6 +836,22 @@ fn position_tooltip(
     design_node.top = top;
     design_node.bottom = bottom;
     design_node
+}
+
+/// Updates the the status of the user cursors to indicate leaving
+fn pointer_left_link(
+    hover: On<Pointer<Out>>,
+    mut prescence_query: Query<&mut TooltipPointerPresence>,
+) {
+    let mut prescene_item = r!(prescence_query.get_mut(hover.entity));
+    *prescene_item = TooltipPointerPresence::Left;
+}
+fn pointer_over_link(
+    hover: On<Pointer<Over>>,
+    mut prescence_query: Query<&mut TooltipPointerPresence>,
+) {
+    let mut prescene_item = r!(prescence_query.get_mut(hover.entity));
+    *prescene_item = TooltipPointerPresence::On;
 }
 
 #[derive(QueryData)]

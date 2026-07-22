@@ -25,7 +25,7 @@ impl Plugin for HighlightPlugin {
 }
 
 /// Inserts [`TooltipHighlighting`] onto entities that has a component [`TooltipHighlight`] with the same string key.
-#[derive(Debug, Component)]
+#[derive(Debug, Component, PartialEq)]
 pub struct TooltipHighlightLink(pub String);
 
 /// When a [`TooltipHighlightLink`] has been activated and shares the same string with this component

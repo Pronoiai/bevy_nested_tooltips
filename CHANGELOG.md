@@ -1,20 +1,24 @@
 # Changelog
 
+## 0.4.2
+- Tooltips no longer timeout from lack of user interaction while they are being hovered upon.
+
+
 ## 0.4.1
-- Locked tooltips can now be moved by clicking and dragging
+- Locked tooltips can now be moved by clicking and dragging.
 
 
 ## 0.4.0
-- Update to bevy 0.19
+- Update to bevy 0.19.
 
 ## 0.3.1
 - Silence potential expected error on startup.
 
 ## 0.3.0
-- Update to bevy 0.18
-- Observers to only spawned for their usecase
-- Use new 0.18 textspan observers instead of crates emulation
-- The default time until despawn has been decreased
+- Update to bevy 0.18.
+- Observers to only spawned for their usecase.
+- Use new 0.18 textspan observers instead of crates emulation.
+- The default time until despawn has been decreased.
 
 ## 0.2.4
 - New systemparams for getting tooltips parts.

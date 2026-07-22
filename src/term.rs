@@ -10,11 +10,12 @@ use bevy_picking::events::{Over, Pointer};
 use bevy_time::{Timer, TimerMode};
 use tiny_bail::prelude::*;
 
-use crate::{ActivationMethod, TooltipConfiguration, TooltipLinkTimer};
+use crate::{ActivationMethod, TooltipConfiguration, TooltipLinkTimer, TooltipPointerPresence};
 
 /// Place this on a node or text that you want to spawn a Tooltip.
 /// The tooltip displayed will be the contents of [`crate::TooltipMap`].
-#[derive(Debug, Component)]
+#[derive(Debug, Component, PartialEq)]
+#[require(TooltipPointerPresence)]
 pub struct TooltipTermLink {
     pub(crate) linked_string: String,
 }
@@ -35,7 +36,7 @@ impl TooltipTermLink {
 /// This is used for putting links of tooltips in tooltips
 /// Should not be created by end users but can safely read if you are interested in recursive case
 /// Recursive case may be treated seperately in future such as shorter hover times.
-#[derive(Debug, Component)]
+#[derive(Debug, Component, PartialEq)]
 pub struct TooltipTermLinkRecursive {
     pub(crate) parent_entity: Entity,
     pub(crate) linked_string: String,
