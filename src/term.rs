@@ -4,7 +4,8 @@ use bevy_ecs::{
     component::Component,
     entity::Entity,
     observer::On,
-    system::{Commands, Res},
+    query::AnyOf,
+    system::{Commands, Query, Res},
 };
 use bevy_picking::events::{Over, Pointer};
 use bevy_time::{Timer, TimerMode};
@@ -66,10 +67,17 @@ impl TooltipTermLinkRecursive {
 /// away from will spawn a [`crate::Tooltip`].
 pub(crate) fn hover_time_spawn(
     hover: On<Pointer<Over>>,
+    tooltip_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
     tooltip_configuration: Res<TooltipConfiguration>,
     mut commands: Commands,
 ) {
+    // Would prefer to restrict hover to entites, but I don't know how to while having marker components
+    if !tooltip_query.contains(hover.entity) {
+        return;
+    }
+
     let current_activation = tooltip_configuration.activation_method.clone();
+
     if let ActivationMethod::Hover { time } = current_activation {
         {
             r!(commands.get_entity(hover.entity)).insert(TooltipLinkTimer {

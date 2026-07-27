@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3
+- Stop putting `TooltipLinkTimer` on every that is hovered.
+
+
 ## 0.4.2
 - Tooltips no longer timeout from lack of user interaction while they are being hovered upon.
 
