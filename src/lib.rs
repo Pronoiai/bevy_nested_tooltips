@@ -152,7 +152,7 @@ use bevy_log::error;
 use bevy_math::{Rect, Vec2};
 use bevy_picking::{
     Pickable,
-    events::{Drag, Move, Out, Over, Pointer, Press},
+    events::{Click, Drag, Move, Out, Over, Pointer, Press},
     pointer::PointerButton,
 };
 use bevy_platform::collections::HashMap;
@@ -189,6 +189,7 @@ impl Plugin for NestedTooltipPlugin {
         app.add_plugins(HighlightPlugin)
             .init_resource::<TooltipConfiguration>()
             .init_resource::<TooltipReference>()
+            .init_resource::<TooltipMap>()
             .add_systems(PreStartup, setup_component_hooks)
             .add_systems(Update, tick_timers)
             .add_systems(
@@ -352,7 +353,7 @@ fn tooltip_presence(mut world: DeferredWorld, HookContext { entity, .. }: HookCo
 /// for the hashmap and its result will populate the tooltip.
 ///
 /// See [`TooltipsData`].
-#[derive(Resource, Debug, Deref, DerefMut, Clone)]
+#[derive(Resource, Default, Debug, Deref, DerefMut, Clone)]
 pub struct TooltipMap {
     pub map: HashMap<String, TooltipsData>,
 }
@@ -658,7 +659,7 @@ fn hover_despawn(
 /// When user has pressed the middle mouse button on a [`TooltipLink`].
 #[allow(clippy::too_many_arguments)]
 fn middle_mouse_spawn(
-    mut press: On<Pointer<Press>>,
+    mut press: On<Pointer<Click>>,
     links_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
     existing_tooltips_query: Query<(Entity, &Tooltip)>,
     window_query: Query<&Window>,

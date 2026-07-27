@@ -1,7 +1,11 @@
 # Changelog
 
+## 0.4.4
+- `TooltipMap` not beining initialised no longer causes a crash.
+
+
 ## 0.4.3
-- Stop putting `TooltipLinkTimer` on every that is hovered.
+- Stop putting `TooltipLinkTimer` on every component that is hovered.
 
 
 ## 0.4.2
