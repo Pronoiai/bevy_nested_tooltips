@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5
+- Can have custom scenes added so you for instance have a goto ship
+- Some breaking renames
+- Seperate the display text, from the text link
+- ugly code cleanup
+
 ## 0.4.4
 - `TooltipMap` not beining initialised no longer causes a crash.
 

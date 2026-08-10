@@ -129,11 +129,11 @@ fn spawn_scene(mut commands: Commands) {
             "ToolTip",
             vec![
                 TooltipsContent::String("A way to give users infomation can be ".into()),
-                TooltipsContent::Term("recursive".into()),
+                TooltipsContent::Term(TooltipsContentDetail::new("recursive")),
                 TooltipsContent::String(" ".into()),
-                TooltipsContent::Highlight("left".into()),
+                TooltipsContent::Highlight(TooltipsContentDetail::new("left")),
                 TooltipsContent::String(" ".into()),
-                TooltipsContent::Highlight("right".into()),
+                TooltipsContent::Highlight(TooltipsContentDetail::new("right")),
                 TooltipsContent::String(" Press middle mouse button to lock me. ".into()),
             ],
         ),
@@ -145,11 +145,11 @@ fn spawn_scene(mut commands: Commands) {
             "Recursive",
             vec![
                 TooltipsContent::String("Tooltips can be ".into()),
-                TooltipsContent::Term("recursive".into()),
+                TooltipsContent::Term(TooltipsContentDetail::new("recursive")),
                 TooltipsContent::String(
                     " You can highlight specific ui panels with such as the ".into(),
                 ),
-                TooltipsContent::Highlight("sides".into()),
+                TooltipsContent::Highlight(TooltipsContentDetail::new("sides")),
                 TooltipsContent::String(" Press middle mouse button to lock me. ".into()),
             ],
         ),

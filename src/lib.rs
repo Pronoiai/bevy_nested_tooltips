@@ -130,23 +130,25 @@ pub mod layout;
 pub mod query;
 pub mod term;
 
-use std::time::Duration;
+use std::{fmt::Debug, time::Duration};
 
 use bevy_app::{Plugin, PreStartup, Update};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
-    children,
     component::Component,
     entity::Entity,
     event::{EntityEvent, Event},
+    hierarchy::Children,
     lifecycle::HookContext,
     observer::{Observer, On},
     query::{AnyOf, Has, Or, QueryData, With},
     resource::Resource,
     schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
     system::{Commands, Query, Res},
+    template::template,
     world::{DeferredWorld, World},
 };
+use bevy_scene::{CommandsSceneExt, Scene, bsn, template_value};
 
 use bevy_log::error;
 use bevy_math::{Rect, Vec2};
@@ -169,7 +171,7 @@ use tiny_bail::prelude::*;
 pub mod prelude {
     pub use super::{
         ActivationMethod, NestedTooltipPlugin, Tooltip, TooltipConfiguration, TooltipMap,
-        TooltipSpawned, TooltipsContent, TooltipsData,
+        TooltipSpawned, TooltipsContent, TooltipsContentDetail, TooltipsData,
         events::{TooltipHighlighting, TooltipLocked},
         highlight::{TooltipHighlight, TooltipHighlightLink},
         layout::{TooltipStringText, TooltipTextNode, TooltipTitleNode, TooltipTitleText},
@@ -293,7 +295,7 @@ impl Tooltip {
 /// When the cursor has gotten sufficently inside the tooltip
 /// leaving will now despawn this tooltip.
 #[derive(Debug, Component)]
-struct ToolTipDebounced;
+struct TooltipDebounced;
 
 /// This is sent when a [`Tooltip`] is spawned.
 #[derive(Debug, EntityEvent)]
@@ -325,7 +327,7 @@ pub struct TooltipLinkTimer {
     timer: Timer,
 }
 
-/// Sent when link has been hovered long enough to spawn [`ToolTip`].
+/// Sent when link has been hovered long enough to spawn [`Tooltip`].
 #[derive(Event)]
 struct TooltipLinkTimeElapsed {
     term_entity: Entity,
@@ -353,13 +355,13 @@ fn tooltip_presence(mut world: DeferredWorld, HookContext { entity, .. }: HookCo
 /// for the hashmap and its result will populate the tooltip.
 ///
 /// See [`TooltipsData`].
-#[derive(Resource, Default, Debug, Deref, DerefMut, Clone)]
+#[derive(Resource, Default, Debug, Deref, DerefMut)]
 pub struct TooltipMap {
     pub map: HashMap<String, TooltipsData>,
 }
 
 /// What is to be included in the [`Tooltip`].
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TooltipsData {
     /// The title at the top of the tooltips.
     pub title: String,
@@ -379,14 +381,56 @@ impl TooltipsData {
 /// This makes up a part of the tooltips text content.
 /// Each variant outputs text but with different behaviours
 /// See each variants documenation for details.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum TooltipsContent {
     /// Displays normal text for the user.
     String(String),
     /// Nested information that can spawn's a child tooltip, used as key for [`TooltipMap`].
-    Term(String),
+    Term(TooltipsContentDetail),
     /// Adds a highlight Component to all tooltips with [`TooltipHighlight`].
-    Highlight(String),
+    Highlight(TooltipsContentDetail),
+    /// Text with a custom scene, use this to add observers for custom behaviour
+    Custom(TooltipsContentDetail, fn() -> Box<dyn Scene>),
+}
+
+/// This allows the differentiation between the trigger word and displayed variations
+/// for cases such as text
+#[derive(Clone, Debug)]
+pub struct TooltipsContentDetail {
+    /// The identifying word that connects the highlights
+    pub link: String,
+    /// The actual display text, this will often be the same as the link,
+    /// but can change for gramatical reasons such as plurals
+    pub text: String,
+}
+
+impl TooltipsContentDetail {
+    /// Creates new link with the text matching see [`with_alias`] for when you need to change
+    /// text away from actual link
+    pub fn new(link: impl Into<String>) -> Self {
+        let link = link.into();
+        let text = link.clone();
+        Self { link, text }
+    }
+
+    /// Creates a new link with the actual text being display differing
+    /// see [`new`] for a more convenient way to initialise both
+    pub fn with_alias(link: impl Into<String>, text: impl Into<String>) -> Self {
+        let link = link.into();
+        let text = text.into();
+        Self { link, text }
+    }
+}
+
+impl Debug for TooltipsContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::String(arg0) => f.debug_tuple("String").field(arg0).finish(),
+            Self::Term(arg0) => f.debug_tuple("Term").field(arg0).finish(),
+            Self::Highlight(arg0) => f.debug_tuple("Highlight").field(arg0).finish(),
+            Self::Custom(arg0, _) => f.debug_tuple("Custom").field(arg0).finish(),
+        }
+    }
 }
 
 /// Marker for Observers related to middle mouse triggering of tooltips
@@ -558,7 +602,7 @@ fn tick_timers(
     }
 }
 
-/// Triggered when timer is done, fetch additional data to spawn [`ToolTip`].
+/// Triggered when timer is done, fetch additional data to spawn [`Tooltip`].
 #[allow(clippy::too_many_arguments)]
 fn spawn_time_done(
     term: On<TooltipLinkTimeElapsed>,
@@ -575,9 +619,9 @@ fn spawn_time_done(
         links_query,
         existing_tooltips_query,
         window_query,
-        tooltips_map,
-        tooltip_reference,
-        tooltip_configuration,
+        &tooltips_map,
+        &tooltip_reference,
+        &tooltip_configuration,
         &mut commands,
     );
 }
@@ -585,7 +629,7 @@ fn spawn_time_done(
 #[derive(QueryData)]
 struct TooltipDebounceQuery {
     tooltip: &'static Tooltip,
-    debounced: Has<ToolTipDebounced>,
+    debounced: Has<TooltipDebounced>,
     cursor: &'static RelativeCursorPosition,
 }
 
@@ -612,7 +656,7 @@ fn hover_debounce(
 
     if bounds.contains(normalised) {
         r!(commands.get_entity(hover.entity))
-            .insert(ToolTipDebounced)
+            .insert(TooltipDebounced)
             .remove::<TooltipWaitForHover>();
     }
 }
@@ -623,10 +667,10 @@ struct TooltipQuery {
     relative_cursor: &'static RelativeCursorPosition,
     has_nested: Has<TooltipsNested>,
     locked: Has<TooltipLocked>,
-    debounced: Has<ToolTipDebounced>,
+    debounced: Has<TooltipDebounced>,
 }
 
-/// When user mouses out of [`ToolTip`] despawn it
+/// When user mouses out of [`Tooltip`] despawn it
 /// unless it has a nested tooltip or the cursor is still on the link
 #[allow(clippy::type_complexity)]
 fn hover_despawn(
@@ -678,25 +722,25 @@ fn middle_mouse_spawn(
         links_query,
         existing_tooltips_query,
         window_query,
-        tooltips_map,
-        tooltip_reference,
-        tooltip_configuration,
+        &tooltips_map,
+        &tooltip_reference,
+        &tooltip_configuration,
         &mut commands,
     );
 }
 
-/// Common logic to spawn [`ToolTip`] should be called when activation method has been satisfied
+/// Common logic to spawn [`Tooltip`] should be called when activation method has been satisfied
 /// This also blocks tooltips from spawning if entity has already spawned one.
 #[allow(clippy::too_many_arguments)]
 fn spawn_tooltip(
     term_entity: Entity,
-    links_query: Query<'_, '_, AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
+    links_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
     existing_tooltips_query: Query<(Entity, &Tooltip)>,
-    window_query: Query<'_, '_, &Window>,
-    tooltips_map: Res<'_, TooltipMap>,
-    tooltip_reference: Res<'_, TooltipReference>,
-    tooltip_configuration: Res<TooltipConfiguration>,
-    commands: &mut Commands<'_, '_>,
+    window_query: Query<&Window>,
+    tooltips_map: &TooltipMap,
+    tooltip_reference: &TooltipReference,
+    tooltip_configuration: &TooltipConfiguration,
+    commands: &mut Commands,
 ) {
     // Prevent the same entity having two existing tooltips spawned
     for (_, tooltip) in existing_tooltips_query {
@@ -721,7 +765,7 @@ fn spawn_tooltip(
         }
     };
 
-    // Despawn other top level `ToolTip`s
+    // Despawn other top level `Tooltip`s
     let zindex = match nested {
         None => {
             for (entity, _) in existing_tooltips_query {
@@ -737,65 +781,89 @@ fn spawn_tooltip(
     let tooltip_data = r!(tooltips_map.get(&tooltip_term));
     let design_node = position_tooltip(window_query, tooltip_reference);
 
-    let mut tooltip_commands = commands.spawn((
-        design_node,
-        Tooltip {
+    let wait_for = tooltip_configuration.interaction_wait_for_time.clone();
+    let title = tooltip_data.title.clone();
+
+    let tooltip_commands = commands.spawn_scene(bsn! {
+        #tooltip
+        template_value(design_node)
+        template(move|_|Ok(Tooltip {
             from_entity: term_entity,
-        },
-        TooltipWaitForHover {
+        }))
+        template(move|_|Ok(TooltipWaitForHover {
             timer: Timer::new(
-                tooltip_configuration.interaction_wait_for_time,
+                wait_for,
                 TimerMode::Once,
             ),
-        },
-        zindex,
+        }))
+        template_value(zindex)
         Pickable {
             should_block_lower: true,
             is_hoverable: true,
-        },
-        children![(
-            TooltipTitleNode,
+        }
+        Children[(
+            TooltipTitleNode
             Node {
                 display: Display::Flex,
-                ..Default::default()
-            },
-            children![(TooltipTitleText, Text::new(tooltip_data.title.clone()))]
-        )],
-    ));
-    if let Some(nested) = nested {
-        tooltip_commands.insert(TooltipsNestedOf(nested));
-    }
-    tooltip_commands.with_children(|parent| {
-        let parent_entity = parent.target_entity();
-        parent
-            .spawn((
-                TooltipTextNode,
-                Node {
-                    display: Display::Flex,
-                    width: Val::Percent(100.),
-                    ..Default::default()
-                },
-                Text::new(""),
-            ))
-            .with_children(|text| {
-                for c in &tooltip_data.content {
-                    match c.clone() {
+            }
+            Children[
+                (
+                    TooltipTitleText
+                    Text::new(title)
+                )
+            ]
+        ),
+        (
+            TooltipTextNode
+            Node {
+                display: Display::Flex,
+                width: Val::Percent(100.),
+            }
+            Text::new("")
+            Children[
+            {tooltip_data.content.iter().map(|item| -> Box<dyn Scene> {
+                    match item {
                         TooltipsContent::String(s) => {
-                            text.spawn((TooltipStringText, TextSpan::new(s)));
-                        }
+                            let s = s.clone();
+                            Box::new(bsn! {
+                                TooltipStringText
+                                TextSpan::new(s)
+                            })
+                        },
                         TooltipsContent::Term(s) => {
-                            text.spawn((
-                                TooltipTermLinkRecursive::new(parent_entity, s.clone()),
-                                TextSpan::new(s),
-                            ));
-                        }
+                            let link = s.link.clone();
+                            let text = s.text.clone();
+                            Box::new(bsn! {
+                                TooltipTermLinkRecursive{
+                                    parent_entity: #tooltip,
+                                    linked_string:{link.clone()}
+                                }
+                                TextSpan::new(text)
+                            })
+                        },
                         TooltipsContent::Highlight(s) => {
-                            text.spawn((TooltipHighlightLink(s.clone()), TextSpan::new(s)));
-                        }
+                            let link = s.link.clone();
+                            let text = s.text.clone();
+                            Box::new(bsn! {
+                                template(move |_|{
+                                    Ok(TooltipHighlightLink(link.clone()))
+                                })
+                                TextSpan::new(text)
+                            })
+                        },
+                        TooltipsContent::Custom(s, scene) => {
+                            let text = s.text.clone();
+                            Box::new(bsn! {
+                                TextSpan::new(text.clone())
+                                {scene()}
+                            })
+                        },
                     }
-                }
-            });
+                }).collect::<Vec<_>>()}
+            ]
+        )]
     });
+
     let tooltip_id = tooltip_commands.id();
 
     r!(commands.get_entity(term_entity)).insert(TooltipPointerPresence::On);
@@ -803,11 +871,8 @@ fn spawn_tooltip(
     commands.trigger(TooltipSpawned { entity: tooltip_id });
 }
 
-/// Poistions the [`ToolTip`] relative to the cursor.
-fn position_tooltip(
-    window_query: Query<'_, '_, &Window>,
-    tooltip_reference: Res<'_, TooltipReference>,
-) -> Node {
+/// Poistions the [`Tooltip`] relative to the cursor.
+fn position_tooltip(window_query: Query<&Window>, tooltip_reference: &TooltipReference) -> Node {
     let mut design_node = tooltip_reference.tooltip_node.clone();
     let window = r!(window_query.single());
     let cursor_position = r!(window.cursor_position());

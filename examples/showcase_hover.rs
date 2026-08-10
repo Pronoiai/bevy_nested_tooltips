@@ -32,6 +32,7 @@ fn main() -> AppExit {
         // These observers are more necessary to react to user
         .add_observer(add_highlight)
         .add_observer(remove_highlight)
+        // Show the user the tooltip has been locked
         .add_observer(display_locking)
         .add_observer(display_unlocking)
         .run()
@@ -113,7 +114,7 @@ fn spawn_scene(mut commands: Commands) {
             "ToolTip",
             vec![
                 TooltipsContent::String("A way to give users infomation can be ".into()),
-                TooltipsContent::Term("recursive".into()),
+                TooltipsContent::Term(TooltipsContentDetail::new("recursive")),
                 TooltipsContent::String(" Press middle mouse button to lock me. ".into()),
             ],
         ),
@@ -125,11 +126,11 @@ fn spawn_scene(mut commands: Commands) {
             "Recursive",
             vec![
                 TooltipsContent::String("Tooltips can be ".into()),
-                TooltipsContent::Term("recursive".into()),
+                TooltipsContent::Term(TooltipsContentDetail::new("recursive")),
                 TooltipsContent::String(
                     " You can highlight specific ui panels with such as the ".into(),
                 ),
-                TooltipsContent::Highlight("sides".into()),
+                TooltipsContent::Highlight(TooltipsContentDetail::new("sides")),
                 TooltipsContent::String(" Press middle mouse button to lock me. ".into()),
             ],
         ),

@@ -6,6 +6,7 @@ use bevy_ecs::{
     observer::On,
     query::AnyOf,
     system::{Commands, Query, Res},
+    template::{EntityTemplate, FromTemplate, Template},
 };
 use bevy_picking::events::{Over, Pointer};
 use bevy_time::{Timer, TimerMode};
@@ -37,20 +38,13 @@ impl TooltipTermLink {
 /// This is used for putting links of tooltips in tooltips
 /// Should not be created by end users but can safely read if you are interested in recursive case
 /// Recursive case may be treated seperately in future such as shorter hover times.
-#[derive(Debug, Component, PartialEq)]
+#[derive(Clone, Debug, Component, PartialEq)]
 pub struct TooltipTermLinkRecursive {
     pub(crate) parent_entity: Entity,
     pub(crate) linked_string: String,
 }
 
 impl TooltipTermLinkRecursive {
-    /// Creates a new link with the given string and parent entity.
-    pub(crate) fn new(parent_entity: Entity, linked_string: String) -> Self {
-        Self {
-            parent_entity,
-            linked_string,
-        }
-    }
     /// The string that is used to look up the term.
     pub fn linked_string(&self) -> &str {
         &self.linked_string
@@ -59,6 +53,37 @@ impl TooltipTermLinkRecursive {
     /// The [`crate::Tooltip`] that holds this link.
     pub fn parent_entity(&self) -> Entity {
         self.parent_entity
+    }
+}
+
+impl FromTemplate for TooltipTermLinkRecursive {
+    type Template = TooltipTermLinkRecursiveTemplate;
+}
+
+#[derive(Default)]
+pub struct TooltipTermLinkRecursiveTemplate {
+    pub parent_entity: EntityTemplate,
+    pub linked_string: String,
+}
+
+impl Template for TooltipTermLinkRecursiveTemplate {
+    type Output = TooltipTermLinkRecursive;
+
+    fn build_template(
+        &self,
+        context: &mut bevy_ecs::template::TemplateContext,
+    ) -> bevy_ecs::error::Result<Self::Output> {
+        Ok(TooltipTermLinkRecursive {
+            parent_entity: self.parent_entity.build_template(context)?,
+            linked_string: self.linked_string.clone(),
+        })
+    }
+
+    fn clone_template(&self) -> Self {
+        Self {
+            parent_entity: self.parent_entity.clone_template(),
+            linked_string: self.linked_string.clone_template(),
+        }
     }
 }
 

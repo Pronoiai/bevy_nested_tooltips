@@ -49,7 +49,7 @@ use bevy_nested_tooltips::prelude::*;
 
     tooltip_map.insert(
         "tooltip".into(),
-        ToolTipsData::new(
+        TooltipsData::new(
             "ToolTip",
             vec![
                 TooltipsContent::String("A way to give users infomation can be ".into()),
@@ -61,7 +61,7 @@ use bevy_nested_tooltips::prelude::*;
 
     tooltip_map.insert(
         "recursive".into(),
-        ToolTipsData::new(
+        TooltipsData::new(
             "Recursive",
             vec![
                 TooltipsContent::String("Tooltips can be ".into()),
@@ -142,6 +142,6 @@ This plugin assumes a single fullscreen and camera is used.
 
 | `bevy` | `bevy_nested_tooltips` |
 |-------|-------------------|
-| 0.19  | 0.4      |
+| 0.19  | 0.4-0.5  |
 | 0.18  | 0.3      |
-| 0.17  | 0.1-0.2      |
+| 0.17  | 0.1-0.2  |
