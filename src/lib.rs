@@ -390,7 +390,8 @@ pub enum TooltipsContent {
     /// Adds a highlight Component to all tooltips with [`TooltipHighlight`].
     Highlight(TooltipsContentDetail),
     /// Text with a custom scene, use this to add observers for custom behaviour
-    Custom(TooltipsContentDetail, fn() -> Box<dyn Scene>),
+    /// Takes in the link string
+    Custom(TooltipsContentDetail, fn(&str) -> Box<dyn Scene>),
 }
 
 /// This allows the differentiation between the trigger word and displayed variations
@@ -855,7 +856,7 @@ fn spawn_tooltip(
                             let text = s.text.clone();
                             Box::new(bsn! {
                                 TextSpan::new(text.clone())
-                                {scene()}
+                                {scene(&s.link)}
                             })
                         },
                     }

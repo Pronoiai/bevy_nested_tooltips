@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6
+- custom scenes are now supplied with the link string, so they can react accordingly
+
 ## 0.5
 - Can have custom scenes added so you for instance have a goto ship
 - Some breaking renames
