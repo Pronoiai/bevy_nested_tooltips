@@ -41,6 +41,28 @@ fn setup_component_hooks(world: &mut World) {
             r!(world.commands().get_entity(entity))
                 .observe(highlight_activate)
                 .observe(highlight_deactivate);
+        })
+        .on_despawn(|mut world, HookContext { entity, .. }| {
+            #[derive(QueryData)]
+            struct HighlightingQuery {
+                entity: Entity,
+                highlighting: &'static TooltipHighlighting,
+            }
+
+            world.commands().run_system_cached_with(
+                |entity: bevy_ecs::system::In<Entity>,
+                 highlight_query: Query<HighlightingQuery>,
+                 mut commands: Commands| {
+                    let entity = entity.0;
+                    for highlight_item in highlight_query {
+                        if highlight_item.highlighting.entity == entity {
+                            c!(commands.get_entity(highlight_item.entity))
+                                .remove::<TooltipHighlighting>();
+                        }
+                    }
+                },
+                entity,
+            );
         });
 }
 
@@ -58,13 +80,16 @@ fn highlight_activate(
     highlight_nodes_query: Query<HighlightNodesQuery>,
     mut commands: Commands,
 ) {
-    let link = r!(highlight_nodes_link_query.get(hover.entity)).0.clone();
+    let hover_entity = hover.entity;
+    let link = r!(highlight_nodes_link_query.get(hover_entity)).0.clone();
 
     for node in highlight_nodes_query
         .iter()
         .filter(|x| x.tooltip_highlight.0.contains(&link))
     {
-        c!(commands.get_entity(node.entity)).insert(TooltipHighlighting);
+        c!(commands.get_entity(node.entity)).insert(TooltipHighlighting {
+            entity: hover_entity,
+        });
     }
 }
 

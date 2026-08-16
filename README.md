@@ -142,6 +142,6 @@ This plugin assumes a single fullscreen and camera is used.
 
 | `bevy` | `bevy_nested_tooltips` |
 |-------|-------------------|
-| 0.19  | 0.4-0.5  |
+| 0.19  | 0.4-0.7  |
 | 0.18  | 0.3      |
 | 0.17  | 0.1-0.2  |

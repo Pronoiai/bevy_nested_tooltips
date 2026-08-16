@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7
+- Bevy 0.19
+- Tooltips now remove highlighting when the link is despawned, users can also see which entity triggered the highlight
+
+
 ## 0.6
 - custom scenes are now supplied with the link string, so they can react accordingly
 
