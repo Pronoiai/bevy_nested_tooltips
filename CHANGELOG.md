@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8
+- Added manual spawning of tooltips
+- Now states what term was not found when lookup fails
+
 ## 0.7
 - Bevy 0.19
 - Tooltips now remove highlighting when the link is despawned, users can also see which entity triggered the highlight

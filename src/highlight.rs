@@ -14,7 +14,7 @@ use bevy_ecs::{
 use bevy_picking::events::{Out, Over, Pointer};
 use tiny_bail::prelude::*;
 
-use crate::events::TooltipHighlighting;
+use crate::react::TooltipHighlighting;
 
 pub(crate) struct HighlightPlugin;
 

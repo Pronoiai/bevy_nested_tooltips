@@ -124,10 +124,10 @@
 //! }
 //! ```
 
-pub mod events;
 pub mod highlight;
 pub mod layout;
 pub mod query;
+pub mod react;
 pub mod term;
 
 use std::{fmt::Debug, time::Duration};
@@ -172,10 +172,10 @@ pub mod prelude {
     pub use super::{
         ActivationMethod, NestedTooltipPlugin, Tooltip, TooltipConfiguration, TooltipMap,
         TooltipSpawned, TooltipsContent, TooltipsContentDetail, TooltipsData,
-        events::{TooltipHighlighting, TooltipLocked},
         highlight::{TooltipHighlight, TooltipHighlightLink},
         layout::{TooltipStringText, TooltipTextNode, TooltipTitleNode, TooltipTitleText},
         query::{TooltipEntities, TooltipEntitiesParam},
+        react::{SpawnTooltip, TooltipHighlighting, TooltipLocked},
         term::{TooltipTermLink, TooltipTermLinkRecursive},
     };
 }
@@ -198,7 +198,8 @@ impl Plugin for NestedTooltipPlugin {
                 Update,
                 update_settings.run_if(resource_changed::<TooltipConfiguration>),
             )
-            .add_observer(spawn_time_done);
+            .add_observer(spawn_time_done)
+            .add_observer(requested_spawn);
     }
 }
 
@@ -603,22 +604,67 @@ fn tick_timers(
     }
 }
 
+#[derive(QueryData)]
+struct ExistingTooltipQuery {
+    entity: Entity,
+    tooltip: &'static Tooltip,
+}
+
 /// Triggered when timer is done, fetch additional data to spawn [`Tooltip`].
 #[allow(clippy::too_many_arguments)]
 fn spawn_time_done(
     term: On<TooltipLinkTimeElapsed>,
     links_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
-    existing_tooltips_query: Query<(Entity, &Tooltip)>,
+    existing_tooltips_query: Query<ExistingTooltipQuery>,
     window_query: Query<&Window>,
     tooltips_map: Res<TooltipMap>,
     tooltip_reference: Res<TooltipReference>,
     tooltip_configuration: Res<TooltipConfiguration>,
     mut commands: Commands,
 ) {
+    let term_entity = term.term_entity;
+
+    for tooltip_item in existing_tooltips_query {
+        let tooltip = tooltip_item.tooltip;
+        if tooltip.from_entity == term_entity {
+            return;
+        }
+    }
+
+    let link_item = r!(links_query.get(term_entity));
+    let (tooltip_term, nested) = match link_item {
+        // Guranteed to have at least one entity
+        (None, None) => {
+            error!("Bevy invariant failed");
+            return;
+        }
+        (None, Some(s)) => (s.linked_string.clone(), Some(s.parent_entity)),
+        (Some(s), None) => (s.linked_string.clone(), None),
+        // Shouldn't have both types of links could be caused by user if they tried hard enough
+        (Some(_), Some(_)) => {
+            error!("Nested tooltips has a bug");
+            return;
+        }
+    };
+
+    // Despawn other top level `Tooltip`s
+    let zindex = match nested {
+        None => {
+            for tooltip_item in existing_tooltips_query {
+                let entity = tooltip_item.entity;
+                c!(commands.get_entity(entity)).try_despawn();
+            }
+            GlobalZIndex(tooltip_configuration.starting_z_index)
+        }
+        Some(_) => GlobalZIndex(
+            existing_tooltips_query.count() as i32 + tooltip_configuration.starting_z_index,
+        ),
+    };
+
     spawn_tooltip(
         term.term_entity,
-        links_query,
-        existing_tooltips_query,
+        tooltip_term,
+        zindex,
         window_query,
         &tooltips_map,
         &tooltip_reference,
@@ -706,7 +752,7 @@ fn hover_despawn(
 fn middle_mouse_spawn(
     mut press: On<Pointer<Click>>,
     links_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
-    existing_tooltips_query: Query<(Entity, &Tooltip)>,
+    existing_tooltips_query: Query<ExistingTooltipQuery>,
     window_query: Query<&Window>,
     tooltips_map: Res<TooltipMap>,
     tooltip_reference: Res<TooltipReference>,
@@ -718,34 +764,11 @@ fn middle_mouse_spawn(
     if press.button != PointerButton::Middle {
         return;
     }
-    spawn_tooltip(
-        press.entity,
-        links_query,
-        existing_tooltips_query,
-        window_query,
-        &tooltips_map,
-        &tooltip_reference,
-        &tooltip_configuration,
-        &mut commands,
-    );
-}
 
-/// Common logic to spawn [`Tooltip`] should be called when activation method has been satisfied
-/// This also blocks tooltips from spawning if entity has already spawned one.
-#[allow(clippy::too_many_arguments)]
-fn spawn_tooltip(
-    term_entity: Entity,
-    links_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
-    existing_tooltips_query: Query<(Entity, &Tooltip)>,
-    window_query: Query<&Window>,
-    tooltips_map: &TooltipMap,
-    tooltip_reference: &TooltipReference,
-    tooltip_configuration: &TooltipConfiguration,
-    commands: &mut Commands,
-) {
-    // Prevent the same entity having two existing tooltips spawned
-    for (_, tooltip) in existing_tooltips_query {
-        if tooltip.from_entity == term_entity {
+    let term_entity = press.entity;
+    for tooltip_item in existing_tooltips_query {
+        let tooltip = tooltip_item.tooltip;
+        if tooltip.from_entity == press.entity {
             return;
         }
     }
@@ -769,7 +792,8 @@ fn spawn_tooltip(
     // Despawn other top level `Tooltip`s
     let zindex = match nested {
         None => {
-            for (entity, _) in existing_tooltips_query {
+            for tooltip_item in existing_tooltips_query {
+                let entity = tooltip_item.entity;
                 c!(commands.get_entity(entity)).try_despawn();
             }
             GlobalZIndex(tooltip_configuration.starting_z_index)
@@ -779,7 +803,64 @@ fn spawn_tooltip(
         ),
     };
 
-    let tooltip_data = r!(tooltips_map.get(&tooltip_term));
+    spawn_tooltip(
+        press.entity,
+        tooltip_term,
+        zindex,
+        window_query,
+        &tooltips_map,
+        &tooltip_reference,
+        &tooltip_configuration,
+        &mut commands,
+    );
+}
+
+fn requested_spawn(
+    tooltip_spawn: On<SpawnTooltip>,
+    existing_tooltips_query: Query<ExistingTooltipQuery>,
+    window_query: Query<&Window>,
+    tooltips_map: Res<TooltipMap>,
+    tooltip_reference: Res<TooltipReference>,
+    tooltip_configuration: Res<TooltipConfiguration>,
+    mut commands: Commands,
+) {
+    // Prevent the same entity having two existing tooltips spawned
+    for tooltip_item in existing_tooltips_query {
+        let tooltip = tooltip_item.tooltip;
+        if tooltip.from_entity == tooltip_spawn.entity {
+            return;
+        }
+    }
+
+    spawn_tooltip(
+        tooltip_spawn.entity,
+        tooltip_spawn.term.clone(),
+        GlobalZIndex(tooltip_configuration.starting_z_index),
+        window_query,
+        &tooltips_map,
+        &tooltip_reference,
+        &tooltip_configuration,
+        &mut commands,
+    );
+}
+
+/// Common logic to spawn [`Tooltip`] should be called when activation method has been satisfied
+/// This also blocks tooltips from spawning if entity has already spawned one.
+#[allow(clippy::too_many_arguments)]
+fn spawn_tooltip(
+    term_entity: Entity,
+    tooltip_term: String,
+    zindex: GlobalZIndex,
+    window_query: Query<&Window>,
+    tooltips_map: &TooltipMap,
+    tooltip_reference: &TooltipReference,
+    tooltip_configuration: &TooltipConfiguration,
+    commands: &mut Commands,
+) {
+    let Some(tooltip_data) = tooltips_map.get(&tooltip_term) else {
+        error!("Could not find {tooltip_term} in tooltips");
+        return;
+    };
     let design_node = position_tooltip(window_query, tooltip_reference);
 
     let wait_for = tooltip_configuration.interaction_wait_for_time.clone();

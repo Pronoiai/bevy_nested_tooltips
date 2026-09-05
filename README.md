@@ -17,6 +17,7 @@ This library strives to handle the logic behind common tooltip features, while y
 - Locking by pressing of the middle mouse button. using observers you can implement your specific design to inform your users.
 - Highlight other Entites using a linked text, highlight designs are up to you.
 - Tooltips that are locked can be clicked and dragged around.
+- Manual spawning when a button push is the more appropriate trigger.
 
 ## Usage
 
@@ -142,6 +143,6 @@ This plugin assumes a single fullscreen and camera is used.
 
 | `bevy` | `bevy_nested_tooltips` |
 |-------|-------------------|
-| 0.19  | 0.4-0.7  |
+| 0.19  | 0.4-0.8  |
 | 0.18  | 0.3      |
 | 0.17  | 0.1-0.2  |
