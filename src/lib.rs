@@ -175,13 +175,13 @@ pub mod prelude {
         highlight::{TooltipHighlight, TooltipHighlightLink},
         layout::{TooltipStringText, TooltipTextNode, TooltipTitleNode, TooltipTitleText},
         query::{TooltipEntities, TooltipEntitiesParam},
-        react::{SpawnTooltip, TooltipHighlighting, TooltipLocked},
+        react::{SpawnArbitraryTooltip, SpawnTooltip, TooltipHighlighting, TooltipLocked},
         term::{TooltipTermLink, TooltipTermLinkRecursive},
     };
 }
 use prelude::*;
 
-use crate::{highlight::HighlightPlugin, term::hover_time_spawn};
+use crate::{highlight::HighlightPlugin, react::SpawnArbitraryTooltip, term::hover_time_spawn};
 
 /// This plugin adds systems and resources that makes the logic work.
 pub struct NestedTooltipPlugin;
@@ -199,7 +199,8 @@ impl Plugin for NestedTooltipPlugin {
                 update_settings.run_if(resource_changed::<TooltipConfiguration>),
             )
             .add_observer(spawn_time_done)
-            .add_observer(requested_spawn);
+            .add_observer(requested_spawn)
+            .add_observer(arbitrary_spawn);
     }
 }
 
@@ -371,12 +372,19 @@ pub struct TooltipsData {
 }
 
 impl TooltipsData {
-    pub fn new(title: impl ToString, content: Vec<TooltipsContent>) -> Self {
+    pub fn new(title: impl ToString, content: impl IntoTooltipsContent) -> Self {
         Self {
             title: title.to_string(),
-            content,
+            content: content.into_tooltips_content(),
         }
     }
+}
+
+/// Used to make creation of simple tooltips easier
+/// This is intended to be used in function arguments
+pub trait IntoTooltipsContent {
+    /// Create `TooltipsContent`
+    fn into_tooltips_content(self) -> Vec<TooltipsContent>;
 }
 
 /// This makes up a part of the tooltips text content.
@@ -393,6 +401,18 @@ pub enum TooltipsContent {
     /// Text with a custom scene, use this to add observers for custom behaviour
     /// Takes in the link string
     Custom(TooltipsContentDetail, fn(&str) -> Box<dyn Scene>),
+}
+
+impl IntoTooltipsContent for Vec<TooltipsContent> {
+    fn into_tooltips_content(self) -> Vec<TooltipsContent> {
+        self
+    }
+}
+
+impl IntoTooltipsContent for String {
+    fn into_tooltips_content(self) -> Vec<TooltipsContent> {
+        vec![TooltipsContent::String(self)]
+    }
 }
 
 /// This allows the differentiation between the trigger word and displayed variations
@@ -661,12 +681,16 @@ fn spawn_time_done(
         ),
     };
 
+    let Some(tooltip_data) = tooltips_map.get(&tooltip_term) else {
+        error!("Could not find {tooltip_term} in tooltips");
+        return;
+    };
+
     spawn_tooltip(
         term.term_entity,
-        tooltip_term,
+        tooltip_data,
         zindex,
         window_query,
-        &tooltips_map,
         &tooltip_reference,
         &tooltip_configuration,
         &mut commands,
@@ -803,12 +827,16 @@ fn middle_mouse_spawn(
         ),
     };
 
+    let Some(tooltip_data) = tooltips_map.get(&tooltip_term) else {
+        error!("Could not find {tooltip_term} in tooltips");
+        return;
+    };
+
     spawn_tooltip(
         press.entity,
-        tooltip_term,
+        tooltip_data,
         zindex,
         window_query,
-        &tooltips_map,
         &tooltip_reference,
         &tooltip_configuration,
         &mut commands,
@@ -832,12 +860,44 @@ fn requested_spawn(
         }
     }
 
+    let tooltip_term = &tooltip_spawn.term;
+    let Some(tooltip_data) = tooltips_map.get(tooltip_term) else {
+        error!("Could not find {tooltip_term} in tooltips");
+        return;
+    };
+
     spawn_tooltip(
         tooltip_spawn.entity,
-        tooltip_spawn.term.clone(),
+        tooltip_data,
         GlobalZIndex(tooltip_configuration.starting_z_index),
         window_query,
-        &tooltips_map,
+        &tooltip_reference,
+        &tooltip_configuration,
+        &mut commands,
+    );
+}
+
+fn arbitrary_spawn(
+    tooltip_spawn: On<SpawnArbitraryTooltip>,
+    existing_tooltips_query: Query<ExistingTooltipQuery>,
+    window_query: Query<&Window>,
+    tooltip_reference: Res<TooltipReference>,
+    tooltip_configuration: Res<TooltipConfiguration>,
+    mut commands: Commands,
+) {
+    // Prevent the same entity having two existing tooltips spawned
+    for tooltip_item in existing_tooltips_query {
+        let tooltip = tooltip_item.tooltip;
+        if tooltip.from_entity == tooltip_spawn.entity {
+            return;
+        }
+    }
+
+    spawn_tooltip(
+        tooltip_spawn.entity,
+        &tooltip_spawn.tooltips_data,
+        GlobalZIndex(tooltip_configuration.starting_z_index),
+        window_query,
         &tooltip_reference,
         &tooltip_configuration,
         &mut commands,
@@ -849,18 +909,13 @@ fn requested_spawn(
 #[allow(clippy::too_many_arguments)]
 fn spawn_tooltip(
     term_entity: Entity,
-    tooltip_term: String,
+    tooltip_data: &TooltipsData,
     zindex: GlobalZIndex,
     window_query: Query<&Window>,
-    tooltips_map: &TooltipMap,
     tooltip_reference: &TooltipReference,
     tooltip_configuration: &TooltipConfiguration,
     commands: &mut Commands,
 ) {
-    let Some(tooltip_data) = tooltips_map.get(&tooltip_term) else {
-        error!("Could not find {tooltip_term} in tooltips");
-        return;
-    };
     let design_node = position_tooltip(window_query, tooltip_reference);
 
     let wait_for = tooltip_configuration.interaction_wait_for_time.clone();

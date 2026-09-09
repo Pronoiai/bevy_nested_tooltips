@@ -3,6 +3,8 @@
 
 use bevy_ecs::{component::Component, entity::Entity, event::Event};
 
+use crate::{IntoTooltipsContent, TooltipsData};
+
 /// Marker to indicate this node is currently being highlighted by this tooltip
 /// When this component is added user should apply styling so it's obvious to the player
 /// what is being highlighted.
@@ -23,13 +25,14 @@ pub struct TooltipHighlighting {
 pub struct TooltipLocked;
 
 /// Manually spawn a `Tooltip`, useful for icons users may click.
-/// Not currently supported for nested tooltips.
+/// Not currently supported for doing this in an existing tooltip.
 #[derive(Event)]
 pub struct SpawnTooltip {
     /// The term to lookup
     pub term: String,
 
-    /// The entity spawning this, will quick return if existing tooltips
+    /// The entity spawning this, will quick return if an existing tooltip
+    /// was spawned using the entity
     pub entity: Entity,
 }
 
@@ -38,6 +41,51 @@ impl SpawnTooltip {
         Self {
             term: term.into(),
             entity,
+        }
+    }
+}
+
+/// Spawn a `Tooltip` with content done at runtime.
+/// The motivating case is for sliders, in order to present a value.
+#[derive(Event)]
+pub struct SpawnArbitraryTooltip {
+    /// The entity spawning this, will quick return if an existing tooltip
+    /// was spawned using the entity
+    pub entity: Entity,
+
+    /// The display content for the tooltip
+    pub tooltips_data: TooltipsData,
+}
+
+impl SpawnArbitraryTooltip {
+    /// Create new tooltip for the basic cases you can use a string for
+    /// the content parameter.
+    ///
+    /// If you already have a `TooltipsData` instance then consider using `from_tooltips_data`
+    pub fn new(
+        entity: Entity,
+        title: impl Into<String>,
+        content: impl IntoTooltipsContent,
+    ) -> SpawnArbitraryTooltip {
+        let title = title.into();
+        let data = TooltipsData {
+            title,
+            content: content.into_tooltips_content(),
+        };
+        SpawnArbitraryTooltip {
+            entity,
+            tooltips_data: data,
+        }
+    }
+
+    /// Spawn a tooltip using the existing `TooltipsData`
+    pub fn from_tooltips_data(
+        entity: Entity,
+        tooltips_data: TooltipsData,
+    ) -> SpawnArbitraryTooltip {
+        SpawnArbitraryTooltip {
+            entity,
+            tooltips_data,
         }
     }
 }
