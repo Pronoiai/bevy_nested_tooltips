@@ -170,8 +170,8 @@ use tiny_bail::prelude::*;
 /// An easy way to import commonly used types.
 pub mod prelude {
     pub use super::{
-        ActivationMethod, NestedTooltipPlugin, Tooltip, TooltipConfiguration, TooltipMap,
-        TooltipSpawned, TooltipsContent, TooltipsContentDetail, TooltipsData,
+        ActivationMethod, ArbitraryTooltip, NestedTooltipPlugin, Tooltip, TooltipConfiguration,
+        TooltipMap, TooltipSpawned, TooltipsContent, TooltipsContentDetail, TooltipsData,
         highlight::{TooltipHighlight, TooltipHighlightLink},
         layout::{TooltipStringText, TooltipTextNode, TooltipTitleNode, TooltipTitleText},
         query::{TooltipEntities, TooltipEntitiesParam},
@@ -455,6 +455,10 @@ impl Debug for TooltipsContent {
     }
 }
 
+/// Marks this `Tooltip` as being spawned via the `SpawnArbitraryTooltip`
+#[derive(Component, Clone, Debug, Default)]
+pub struct ArbitraryTooltip;
+
 /// Marker for Observers related to middle mouse triggering of tooltips
 #[derive(Component)]
 struct NestedTooltipsMiddleMouseObserver;
@@ -690,6 +694,7 @@ fn spawn_time_done(
         term.term_entity,
         tooltip_data,
         zindex,
+        (),
         window_query,
         &tooltip_reference,
         &tooltip_configuration,
@@ -836,6 +841,7 @@ fn middle_mouse_spawn(
         press.entity,
         tooltip_data,
         zindex,
+        (),
         window_query,
         &tooltip_reference,
         &tooltip_configuration,
@@ -870,6 +876,7 @@ fn requested_spawn(
         tooltip_spawn.entity,
         tooltip_data,
         GlobalZIndex(tooltip_configuration.starting_z_index),
+        (),
         window_query,
         &tooltip_reference,
         &tooltip_configuration,
@@ -897,6 +904,7 @@ fn arbitrary_spawn(
         tooltip_spawn.entity,
         &tooltip_spawn.tooltips_data,
         GlobalZIndex(tooltip_configuration.starting_z_index),
+        bsn! { ArbitraryTooltip },
         window_query,
         &tooltip_reference,
         &tooltip_configuration,
@@ -911,6 +919,7 @@ fn spawn_tooltip(
     term_entity: Entity,
     tooltip_data: &TooltipsData,
     zindex: GlobalZIndex,
+    additional: impl Scene,
     window_query: Query<&Window>,
     tooltip_reference: &TooltipReference,
     tooltip_configuration: &TooltipConfiguration,
@@ -923,6 +932,7 @@ fn spawn_tooltip(
 
     let tooltip_commands = commands.spawn_scene(bsn! {
         #tooltip
+        additional
         template_value(design_node)
         template(move|_|Ok(Tooltip {
             from_entity: term_entity,
