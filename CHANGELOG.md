@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.9
+- Arbitrary spawning tooltips with runtime data
+
 ## 0.8
 - Added manual spawning of tooltips
 - Now states what term was not found when lookup fails

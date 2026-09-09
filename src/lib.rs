@@ -892,11 +892,11 @@ fn arbitrary_spawn(
     tooltip_configuration: Res<TooltipConfiguration>,
     mut commands: Commands,
 ) {
-    // Prevent the same entity having two existing tooltips spawned
+    // Delete any prior tooltips
     for tooltip_item in existing_tooltips_query {
         let tooltip = tooltip_item.tooltip;
         if tooltip.from_entity == tooltip_spawn.entity {
-            return;
+            c!(commands.get_entity(tooltip_item.entity)).despawn();
         }
     }
 

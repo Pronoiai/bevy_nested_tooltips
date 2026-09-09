@@ -47,6 +47,9 @@ impl SpawnTooltip {
 
 /// Spawn a `Tooltip` with content done at runtime.
 /// The motivating case is for sliders, in order to present a value.
+///
+/// Note this will overwrite any existing `Tooltip`, which is different
+/// from the other ways of creating tooltips and maybe surprising
 #[derive(Event)]
 pub struct SpawnArbitraryTooltip {
     /// The entity spawning this, will quick return if an existing tooltip
