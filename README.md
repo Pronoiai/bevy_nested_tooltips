@@ -18,6 +18,7 @@ This library strives to handle the logic behind common tooltip features, while y
 - Highlight other Entites using a linked text, highlight designs are up to you.
 - Tooltips that are locked can be clicked and dragged around.
 - Manual spawning when a button push is the more appropriate trigger.
+- Arbitrary spawning for runtime tooltips
 
 ## Usage
 
@@ -143,6 +144,6 @@ This plugin assumes a single fullscreen and camera is used.
 
 | `bevy` | `bevy_nested_tooltips` |
 |-------|-------------------|
-| 0.19  | 0.4-0.8  |
+| 0.19  | 0.4-0.9  |
 | 0.18  | 0.3      |
 | 0.17  | 0.1-0.2  |
