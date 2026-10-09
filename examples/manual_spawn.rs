@@ -32,7 +32,7 @@ fn spawn_scene(mut commands: Commands) {
     let background_colour = BackgroundColor(Oklcha::lch(0.7, 0.1, 229.).into());
 
     commands.spawn_scene(bsn! {
-        template_value(background_colour)
+        background_colour
         Node{
             position_type:PositionType::Absolute,
             display:Display::Grid,
@@ -53,8 +53,7 @@ fn spawn_scene(mut commands: Commands) {
                 TextFont{
                     font_size:FontSize::Px(50.)
                 }
-            ],
-
+            ]
 
             Node{
                 width:percent(100),
@@ -101,13 +100,13 @@ fn spawn_scene(mut commands: Commands) {
 }
 
 /// This is the example of triggering manually
-fn clicked_me(click: On<Pointer<Click>>, mut commands: Commands) {
+fn clicked_me(click: On<PointerClick>, mut commands: Commands) {
     commands.trigger(SpawnTooltip::new("click_info", click.entity));
 }
 
 // This is how you style a tooltip!
 // If you want to change the default node consider using TooltipReference
-fn style_tooltip(tooltip: On<Add, Tooltip>, mut commands: Commands) {
+fn style_tooltip(tooltip: On<Add<Tooltip>>, mut commands: Commands) {
     commands
         .get_entity(tooltip.entity)
         .unwrap()

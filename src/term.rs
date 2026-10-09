@@ -8,7 +8,7 @@ use bevy_ecs::{
     system::{Commands, Query, Res},
     template::{EntityTemplate, FromTemplate, Template},
 };
-use bevy_picking::events::{Over, Pointer};
+use bevy_picking::events::PointerOver;
 use bevy_time::{Timer, TimerMode};
 use tiny_bail::prelude::*;
 
@@ -91,7 +91,7 @@ impl Template for TooltipTermLinkRecursiveTemplate {
 /// If configured to display on hover this will add a [`crate::TooltipLinkTimer`] that unless pointer moves
 /// away from will spawn a [`crate::Tooltip`].
 pub(crate) fn hover_time_spawn(
-    hover: On<Pointer<Over>>,
+    hover: On<PointerOver>,
     tooltip_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
     tooltip_configuration: Res<TooltipConfiguration>,
     mut commands: Commands,

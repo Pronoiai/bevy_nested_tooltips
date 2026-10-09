@@ -11,7 +11,7 @@ use bevy_ecs::{
     system::{Commands, Query},
     world::World,
 };
-use bevy_picking::events::{Out, Over, Pointer};
+use bevy_picking::events::{PointerOut, PointerOver};
 use tiny_bail::prelude::*;
 
 use crate::react::TooltipHighlighting;
@@ -75,7 +75,7 @@ struct HighlightNodesQuery {
 /// When text that highlights a node is moused over this will add marker components
 /// to the user so they can then apply highlighting logic.
 fn highlight_activate(
-    hover: On<Pointer<Over>>,
+    hover: On<PointerOver>,
     highlight_nodes_link_query: Query<&TooltipHighlightLink>,
     highlight_nodes_query: Query<HighlightNodesQuery>,
     mut commands: Commands,
@@ -96,7 +96,7 @@ fn highlight_activate(
 /// When text that highlights a node is no longer moused over this will remove marker components
 /// the user can then remove highlighting logic.
 fn highlight_deactivate(
-    hover: On<Pointer<Out>>,
+    hover: On<PointerOut>,
     highlight_nodes_link_query: Query<&TooltipHighlightLink>,
     highlight_nodes_query: Query<HighlightNodesQuery, With<TooltipHighlighting>>,
     mut commands: Commands,

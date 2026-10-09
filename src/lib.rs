@@ -108,7 +108,7 @@
 //! ```rust
 //! // When highlighted change the colour, how you highlight is up to you
 //! // maybe fancy animations
-//! fn add_highlight(side: On<Add, TooltipHighlighting>, mut commands: Commands) {
+//! fn add_highlight(side: On<Add<TooltipHighlighting>>, mut commands: Commands) {
 //!     commands
 //!         .get_entity(side.entity)
 //!         .unwrap()
@@ -116,7 +116,7 @@
 //! }
 //!
 //! // remove highlighting
-//! fn remove_highlight(side: On<Remove, TooltipHighlighting>, mut commands: Commands) {
+//! fn remove_highlight(side: On<Remove<TooltipHighlighting>>, mut commands: Commands) {
 //!     commands
 //!         .get_entity(side.entity)
 //!         .unwrap()
@@ -148,13 +148,13 @@ use bevy_ecs::{
     template::template,
     world::{DeferredWorld, World},
 };
-use bevy_scene::{CommandsSceneExt, Scene, bsn, template_value};
+use bevy_scene::{CommandsSceneExt, Scene, bsn};
 
 use bevy_log::error;
 use bevy_math::{Rect, Vec2};
 use bevy_picking::{
     Pickable,
-    events::{Click, Drag, Move, Out, Over, Pointer, Press},
+    events::{PointerClick, PointerDrag, PointerMove, PointerOut, PointerOver, PointerPress},
     pointer::PointerButton,
 };
 use bevy_platform::collections::HashMap;
@@ -577,7 +577,7 @@ struct HoverLinkQuery {
 
 /// Removes hover timer when user's pointer has left.
 #[track_caller]
-fn hover_cancel_spawn(hover: On<Pointer<Out>>, mut commands: Commands) {
+fn hover_cancel_spawn(hover: On<PointerOut>, mut commands: Commands) {
     rq!(commands.get_entity(hover.entity)).remove::<TooltipLinkTimer>();
 }
 
@@ -713,7 +713,7 @@ struct TooltipDebounceQuery {
 /// tooltip, without this it is too easy to accidentally
 /// close the tooltip.
 fn hover_debounce(
-    hover: On<Pointer<Move>>,
+    hover: On<PointerMove>,
     tooltip_query: Query<TooltipDebounceQuery>,
     mut commands: Commands,
 ) {
@@ -750,7 +750,7 @@ struct TooltipQuery {
 /// unless it has a nested tooltip or the cursor is still on the link
 #[allow(clippy::type_complexity)]
 fn hover_despawn(
-    hover: On<Pointer<Out>>,
+    hover: On<PointerOut>,
     tooltip_query: Query<TooltipQuery>,
     link_query: Query<&'static TooltipPointerPresence>,
     mut commands: Commands,
@@ -779,7 +779,7 @@ fn hover_despawn(
 /// When user has pressed the middle mouse button on a [`TooltipLink`].
 #[allow(clippy::too_many_arguments)]
 fn middle_mouse_spawn(
-    mut press: On<Pointer<Click>>,
+    mut press: On<PointerClick>,
     links_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
     existing_tooltips_query: Query<ExistingTooltipQuery>,
     window_query: Query<&Window>,
@@ -932,8 +932,8 @@ fn spawn_tooltip(
 
     let tooltip_commands = commands.spawn_scene(bsn! {
         #tooltip
-        additional
-        template_value(design_node)
+        @additional
+        design_node
         template(move|_|Ok(Tooltip {
             from_entity: term_entity,
         }))
@@ -943,24 +943,21 @@ fn spawn_tooltip(
                 TimerMode::Once,
             ),
         }))
-        template_value(zindex)
+        zindex
         Pickable {
             should_block_lower: true,
             is_hoverable: true,
         }
-        Children[(
+        Children[
             TooltipTitleNode
             Node {
                 display: Display::Flex,
             }
             Children[
-                (
-                    TooltipTitleText
-                    Text::new(title)
-                )
+                TooltipTitleText
+                Text::new(title)
             ]
-        ),
-        (
+            --
             TooltipTextNode
             Node {
                 display: Display::Flex,
@@ -1002,13 +999,13 @@ fn spawn_tooltip(
                             let text = s.text.clone();
                             Box::new(bsn! {
                                 TextSpan::new(text.clone())
-                                {scene(&s.link)}
+                                @scene(&s.link)
                             })
                         },
                     }
                 }).collect::<Vec<_>>()}
             ]
-        )]
+        ]
     });
 
     let tooltip_id = tooltip_commands.id();
@@ -1053,14 +1050,14 @@ fn position_tooltip(window_query: Query<&Window>, tooltip_reference: &TooltipRef
 
 /// Updates the the status of the user cursors to indicate leaving
 fn pointer_left_link(
-    hover: On<Pointer<Out>>,
+    hover: On<PointerOut>,
     mut prescence_query: Query<&mut TooltipPointerPresence>,
 ) {
     let mut prescene_item = r!(prescence_query.get_mut(hover.entity));
     *prescene_item = TooltipPointerPresence::Left;
 }
 fn pointer_over_link(
-    hover: On<Pointer<Over>>,
+    hover: On<PointerOver>,
     mut prescence_query: Query<&mut TooltipPointerPresence>,
 ) {
     let mut prescene_item = r!(prescence_query.get_mut(hover.entity));
@@ -1075,7 +1072,7 @@ struct LockTooltipQuery {
 
 /// When user presses middle mouse button add or remove [`TooltipLocked`].
 fn toggle_lock(
-    press: On<Pointer<Press>>,
+    press: On<PointerPress>,
     tooltip_query: Query<LockTooltipQuery>,
     mut commands: Commands,
 ) {
@@ -1099,7 +1096,7 @@ struct MoveLockedQuery {
 }
 
 /// Locked tooltips can be moved by clicking and dragging
-fn move_locked_tooltip(drag: On<Pointer<Drag>>, mut tooltip_query: Query<MoveLockedQuery>) {
+fn move_locked_tooltip(drag: On<PointerDrag>, mut tooltip_query: Query<MoveLockedQuery>) {
     if drag.button != PointerButton::Primary {
         return;
     }
@@ -1111,8 +1108,8 @@ fn move_locked_tooltip(drag: On<Pointer<Drag>>, mut tooltip_query: Query<MoveLoc
     let width = tooltip_item.computed_node.size.x / 3.;
     let height = tooltip_item.computed_node.size.y / 3.;
 
-    let x = drag.pointer_location.position.x - width;
-    let y = drag.pointer_location.position.y - height;
+    let x = drag.pointer.position.x - width;
+    let y = drag.pointer.position.y - height;
 
     let mut node = tooltip_item.node;
 

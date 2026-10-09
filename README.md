@@ -119,7 +119,7 @@ Use the entities to style your node using commands or mutatable queries!
 ```rust
 // When highlighted change the colour, how you highlight is up to you
 // maybe fancy animations
-fn add_highlight(side: On<Add, TooltipHighlighting>, mut commands: Commands) {
+fn add_highlight(side: On<Add<TooltipHighlighting>>, mut commands: Commands) {
     commands
         .get_entity(side.entity)
         .unwrap()
@@ -127,13 +127,18 @@ fn add_highlight(side: On<Add, TooltipHighlighting>, mut commands: Commands) {
 }
 
 // remove highlighting
-fn remove_highlight(side: On<Remove, TooltipHighlighting>, mut commands: Commands) {
+fn remove_highlight(side: On<Remove<TooltipHighlighting>>, mut commands: Commands) {
     commands
         .get_entity(side.entity)
         .unwrap()
         .insert(BackgroundColor(BLUE.into()));
 }
 ```
+
+## Note on BSN
+
+Examples and library where written before BSN so do not use idiomatic BSN yet
+
 
 ## Limitations
 
@@ -144,6 +149,7 @@ This plugin assumes a single fullscreen and camera is used.
 
 | `bevy` | `bevy_nested_tooltips` |
 |-------|-------------------|
+| 0.20  | 0.10     |
 | 0.19  | 0.4-0.9  |
 | 0.18  | 0.3      |
 | 0.17  | 0.1-0.2  |

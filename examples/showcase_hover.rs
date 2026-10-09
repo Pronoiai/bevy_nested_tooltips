@@ -200,7 +200,7 @@ fn edge_panels(commands: &mut Commands) {
 
 // This is how you style a tooltip!
 // If you want to change the default node consider using TooltipReference
-fn style_tooltip(tooltip: On<Add, Tooltip>, mut commands: Commands) {
+fn style_tooltip(tooltip: On<Add<Tooltip>>, mut commands: Commands) {
     commands
         .get_entity(tooltip.entity)
         .unwrap()
@@ -253,7 +253,7 @@ fn query_style(
 
 // When highlighted change the colour, how you highlight is up to you
 // maybe fancy animations
-fn add_highlight(side: On<Add, TooltipHighlighting>, mut commands: Commands) {
+fn add_highlight(side: On<Add<TooltipHighlighting>>, mut commands: Commands) {
     commands
         .get_entity(side.entity)
         .unwrap()
@@ -261,14 +261,14 @@ fn add_highlight(side: On<Add, TooltipHighlighting>, mut commands: Commands) {
 }
 
 // remove highlighting
-fn remove_highlight(side: On<Remove, TooltipHighlighting>, mut commands: Commands) {
+fn remove_highlight(side: On<Remove<TooltipHighlighting>>, mut commands: Commands) {
     commands
         .get_entity(side.entity)
         .unwrap()
         .insert(BackgroundColor(BLUE.into()));
 }
 
-fn display_locking(lock: On<Add, TooltipLocked>, mut commands: Commands) {
+fn display_locking(lock: On<Add<TooltipLocked>>, mut commands: Commands) {
     // Making this actually look nice is an excercise for the reader
     let id = commands
         .spawn((
@@ -285,7 +285,7 @@ fn display_locking(lock: On<Add, TooltipLocked>, mut commands: Commands) {
 }
 
 fn display_unlocking(
-    lock: On<Remove, TooltipLocked>,
+    lock: On<Remove<TooltipLocked>>,
     message_lock_query: Query<(Entity, &ChildOf), With<LockMessage>>,
     mut commands: Commands,
 ) {
