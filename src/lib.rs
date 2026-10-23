@@ -927,7 +927,7 @@ fn spawn_tooltip(
 ) {
     let design_node = position_tooltip(window_query, tooltip_reference);
 
-    let wait_for = tooltip_configuration.interaction_wait_for_time.clone();
+    let wait_for = tooltip_configuration.interaction_wait_for_time;
     let title = tooltip_data.title.clone();
 
     let tooltip_commands = commands.spawn_scene(bsn! {
