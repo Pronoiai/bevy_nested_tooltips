@@ -124,12 +124,6 @@
 //! }
 //! ```
 
-pub mod highlight;
-pub mod layout;
-pub mod query;
-pub mod react;
-pub mod term;
-
 use std::{fmt::Debug, time::Duration};
 
 use bevy_app::{Plugin, PreStartup, Update};
@@ -182,6 +176,12 @@ pub mod prelude {
 use prelude::*;
 
 use crate::{highlight::HighlightPlugin, react::SpawnArbitraryTooltip, term::hover_time_spawn};
+
+pub mod highlight;
+pub mod layout;
+pub mod query;
+pub mod react;
+pub mod term;
 
 /// This plugin adds systems and resources that makes the logic work.
 pub struct NestedTooltipPlugin;
