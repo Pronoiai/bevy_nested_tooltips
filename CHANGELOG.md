@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1
+- Use try versions of bevy entity commands api to prevent crashes
+
+## 0.10
+- bevy 0.20
+
 ## 0.9
 - Arbitrary spawning tooltips with runtime data
 

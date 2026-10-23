@@ -578,7 +578,7 @@ struct HoverLinkQuery {
 /// Removes hover timer when user's pointer has left.
 #[track_caller]
 fn hover_cancel_spawn(hover: On<PointerOut>, mut commands: Commands) {
-    rq!(commands.get_entity(hover.entity)).remove::<TooltipLinkTimer>();
+    rq!(commands.get_entity(hover.entity)).try_remove::<TooltipLinkTimer>();
 }
 
 #[derive(QueryData)]
@@ -611,7 +611,7 @@ fn tick_timers(
             commands.trigger(TooltipLinkTimeElapsed {
                 term_entity: links_item.entity,
             });
-            c!(commands.get_entity(links_item.entity)).remove::<TooltipLinkTimer>();
+            c!(commands.get_entity(links_item.entity)).try_remove::<TooltipLinkTimer>();
         }
     }
     for mut wait_for_item in &mut wait_for_query {
@@ -732,8 +732,8 @@ fn hover_debounce(
 
     if bounds.contains(normalised) {
         r!(commands.get_entity(hover.entity))
-            .insert(TooltipDebounced)
-            .remove::<TooltipWaitForHover>();
+            .try_insert(TooltipDebounced)
+            .try_remove::<TooltipWaitForHover>();
     }
 }
 
@@ -773,7 +773,7 @@ fn hover_despawn(
         return;
     }
 
-    r!(commands.get_entity(hover.entity)).despawn();
+    r!(commands.get_entity(hover.entity)).try_despawn();
 }
 
 /// When user has pressed the middle mouse button on a [`TooltipLink`].
@@ -896,7 +896,7 @@ fn arbitrary_spawn(
     for tooltip_item in existing_tooltips_query {
         let tooltip = tooltip_item.tooltip;
         if tooltip.from_entity == tooltip_spawn.entity {
-            c!(commands.get_entity(tooltip_item.entity)).despawn();
+            c!(commands.get_entity(tooltip_item.entity)).try_despawn();
         }
     }
 
@@ -1010,7 +1010,7 @@ fn spawn_tooltip(
 
     let tooltip_id = tooltip_commands.id();
 
-    r!(commands.get_entity(term_entity)).insert(TooltipPointerPresence::On);
+    r!(commands.get_entity(term_entity)).try_insert(TooltipPointerPresence::On);
 
     commands.trigger(TooltipSpawned { entity: tooltip_id });
 }
@@ -1079,9 +1079,9 @@ fn toggle_lock(
     if press.button == PointerButton::Middle {
         let tooltip_item = r!(tooltip_query.get(press.entity));
         if tooltip_item.locked {
-            r!(commands.get_entity(press.entity)).remove::<TooltipLocked>();
+            r!(commands.get_entity(press.entity)).try_remove::<TooltipLocked>();
         } else {
-            r!(commands.get_entity(press.entity)).insert(TooltipLocked);
+            r!(commands.get_entity(press.entity)).try_insert(TooltipLocked);
         }
     }
 }

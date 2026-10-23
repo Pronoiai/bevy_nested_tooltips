@@ -87,7 +87,7 @@ fn highlight_activate(
         .iter()
         .filter(|x| x.tooltip_highlight.0.contains(&link))
     {
-        c!(commands.get_entity(node.entity)).insert(TooltipHighlighting {
+        c!(commands.get_entity(node.entity)).try_insert(TooltipHighlighting {
             entity: hover_entity,
         });
     }

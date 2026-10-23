@@ -105,7 +105,7 @@ pub(crate) fn hover_time_spawn(
 
     if let ActivationMethod::Hover { time } = current_activation {
         {
-            r!(commands.get_entity(hover.entity)).insert(TooltipLinkTimer {
+            r!(commands.get_entity(hover.entity)).try_insert(TooltipLinkTimer {
                 timer: Timer::new(time, TimerMode::Once),
             });
         }

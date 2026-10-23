@@ -297,6 +297,6 @@ fn display_unlocking(
         .iter()
         .find(|item| item.1.0 == lock.entity)
     {
-        commands.get_entity(entity).unwrap().despawn();
+        commands.get_entity(entity).unwrap().try_despawn();
     }
 }
