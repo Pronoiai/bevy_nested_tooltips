@@ -124,7 +124,7 @@
 //! }
 //! ```
 
-use std::{fmt::Debug, time::Duration};
+use std::{collections::VecDeque, fmt::Debug, time::Duration};
 
 use bevy_app::{Plugin, PreStartup, Update};
 use bevy_derive::{Deref, DerefMut};
@@ -139,7 +139,7 @@ use bevy_ecs::{
     resource::Resource,
     schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
     system::{Commands, Query, Res},
-    template::template,
+    template::{FromTemplate, template},
     world::{DeferredWorld, World},
 };
 use bevy_scene::{CommandsSceneExt, Scene, bsn};
@@ -396,6 +396,8 @@ pub enum TooltipsContent {
     String(String),
     /// Nested information that can spawn's a child tooltip, used as key for [`TooltipMap`].
     Term(TooltipsContentDetail),
+    /// Reads in next item in from [`PostionalArguements`]
+    PostionalParameter,
     /// Adds a highlight Component to all tooltips with [`TooltipHighlight`].
     Highlight(TooltipsContentDetail),
     /// Text with a custom scene, use this to add observers for custom behaviour
@@ -444,11 +446,16 @@ impl TooltipsContentDetail {
     }
 }
 
+/// When a positional paramer is in the tooltips content it is replaced by a string from here
+#[derive(Component, Clone, Debug, FromTemplate)]
+pub struct PostionalArguements(VecDeque<String>);
+
 impl Debug for TooltipsContent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::String(arg0) => f.debug_tuple("String").field(arg0).finish(),
             Self::Term(arg0) => f.debug_tuple("Term").field(arg0).finish(),
+            Self::PostionalParameter => f.write_str("Postional_parmarter"),
             Self::Highlight(arg0) => f.debug_tuple("Highlight").field(arg0).finish(),
             Self::Custom(arg0, _) => f.debug_tuple("Custom").field(arg0).finish(),
         }
@@ -634,11 +641,17 @@ struct ExistingTooltipQuery {
     tooltip: &'static Tooltip,
 }
 
+#[derive(QueryData)]
+struct LinksQuery {
+    links: AnyOf<(&'static TooltipTermLink, &'static TooltipTermLinkRecursive)>,
+    postional_parameters: &'static PostionalArguements,
+}
+
 /// Triggered when timer is done, fetch additional data to spawn [`Tooltip`].
 #[allow(clippy::too_many_arguments)]
 fn spawn_time_done(
     term: On<TooltipLinkTimeElapsed>,
-    links_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
+    links_query: Query<LinksQuery>,
     existing_tooltips_query: Query<ExistingTooltipQuery>,
     window_query: Query<&Window>,
     tooltips_map: Res<TooltipMap>,
@@ -656,7 +669,7 @@ fn spawn_time_done(
     }
 
     let link_item = r!(links_query.get(term_entity));
-    let (tooltip_term, nested) = match link_item {
+    let (tooltip_term, nested) = match link_item.links {
         // Guranteed to have at least one entity
         (None, None) => {
             error!("Bevy invariant failed");
@@ -690,9 +703,12 @@ fn spawn_time_done(
         return;
     };
 
+    let postional = link_item.postional_parameters.0.clone();
+
     spawn_tooltip(
         term.term_entity,
         tooltip_data,
+        postional,
         zindex,
         (),
         window_query,
@@ -780,7 +796,7 @@ fn hover_despawn(
 #[allow(clippy::too_many_arguments)]
 fn middle_mouse_spawn(
     mut press: On<PointerClick>,
-    links_query: Query<AnyOf<(&TooltipTermLink, &TooltipTermLinkRecursive)>>,
+    links_query: Query<LinksQuery>,
     existing_tooltips_query: Query<ExistingTooltipQuery>,
     window_query: Query<&Window>,
     tooltips_map: Res<TooltipMap>,
@@ -803,7 +819,7 @@ fn middle_mouse_spawn(
     }
 
     let link_item = r!(links_query.get(term_entity));
-    let (tooltip_term, nested) = match link_item {
+    let (tooltip_term, nested) = match link_item.links {
         // Guranteed to have at least one entity
         (None, None) => {
             error!("Bevy invariant failed");
@@ -837,9 +853,12 @@ fn middle_mouse_spawn(
         return;
     };
 
+    let positional = link_item.postional_parameters.0.clone();
+
     spawn_tooltip(
         press.entity,
         tooltip_data,
+        positional,
         zindex,
         (),
         window_query,
@@ -875,6 +894,7 @@ fn requested_spawn(
     spawn_tooltip(
         tooltip_spawn.entity,
         tooltip_data,
+        VecDeque::new(),
         GlobalZIndex(tooltip_configuration.starting_z_index),
         (),
         window_query,
@@ -903,6 +923,7 @@ fn arbitrary_spawn(
     spawn_tooltip(
         tooltip_spawn.entity,
         &tooltip_spawn.tooltips_data,
+        VecDeque::new(),
         GlobalZIndex(tooltip_configuration.starting_z_index),
         bsn! { ArbitraryTooltip },
         window_query,
@@ -918,6 +939,7 @@ fn arbitrary_spawn(
 fn spawn_tooltip(
     term_entity: Entity,
     tooltip_data: &TooltipsData,
+    mut positional: VecDeque<String>,
     zindex: GlobalZIndex,
     additional: impl Scene,
     window_query: Query<&Window>,
@@ -929,6 +951,60 @@ fn spawn_tooltip(
 
     let wait_for = tooltip_configuration.interaction_wait_for_time;
     let title = tooltip_data.title.clone();
+
+    let mut text_scene = Vec::with_capacity(tooltip_data.content.len());
+
+    for item in &tooltip_data.content {
+        let next_scene: Box<dyn Scene> = match item {
+            TooltipsContent::String(s) => {
+                let s = s.clone();
+                Box::new(bsn! {
+                    TooltipStringText
+                    TextSpan::new(s)
+                })
+            }
+            TooltipsContent::Term(s) => {
+                let link = s.link.clone();
+                let text = s.text.clone();
+                Box::new(bsn! {
+                    TooltipTermLinkRecursive{
+                        parent_entity: #tooltip,
+                        linked_string:{link.clone()}
+                    }
+                    TextSpan::new(text)
+                })
+            }
+            TooltipsContent::Highlight(s) => {
+                let link = s.link.clone();
+                let text = s.text.clone();
+                Box::new(bsn! {
+                    template(move |_|{
+                        Ok(TooltipHighlightLink(link.clone()))
+                    })
+                    TextSpan::new(text)
+                })
+            }
+            TooltipsContent::Custom(s, scene) => {
+                let text = s.text.clone();
+                Box::new(bsn! {
+                    TextSpan::new(text.clone())
+                    @scene(&s.link)
+                })
+            }
+            TooltipsContent::PostionalParameter => match positional.pop_front() {
+                Some(s) => Box::new(bsn! {
+                    TooltipStringText
+                    TextSpan::new(s)
+                }),
+                None => {
+                    error!("Number of postional parameters");
+                    continue;
+                }
+            },
+        };
+
+        text_scene.push(next_scene);
+    }
 
     let tooltip_commands = commands.spawn_scene(bsn! {
         #tooltip
@@ -1002,6 +1078,7 @@ fn spawn_tooltip(
                                 @scene(&s.link)
                             })
                         },
+                        TooltipsContent::PostionalParameter => todo!(),
                     }
                 }).collect::<Vec<_>>()}
             ]
