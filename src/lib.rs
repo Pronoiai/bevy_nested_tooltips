@@ -447,7 +447,7 @@ impl TooltipsContentDetail {
 }
 
 /// When a positional paramer is in the tooltips content it is replaced by a string from here
-#[derive(Component, Clone, Debug, FromTemplate)]
+#[derive(Component, Clone, Debug, Default)]
 pub struct PostionalArguements(VecDeque<String>);
 
 impl Debug for TooltipsContent {
