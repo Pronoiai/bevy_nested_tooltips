@@ -133,7 +133,7 @@ use bevy_ecs::{
     entity::Entity,
     event::{EntityEvent, Event},
     hierarchy::Children,
-    lifecycle::{Add, HookContext},
+    lifecycle::{Add, Discard, HookContext},
     observer::{Observer, On},
     query::{AnyOf, Changed, Has, Or, QueryData, With},
     resource::Resource,
@@ -199,6 +199,7 @@ impl Plugin for NestedTooltipPlugin {
                 update_settings.run_if(resource_changed::<TooltipConfiguration>),
             )
             .add_observer(tooltip_added)
+            .add_observer(tooltip_no_orgin_despawn)
             .add_observer(spawn_time_done)
             .add_observer(requested_spawn)
             .add_observer(arbitrary_spawn);
@@ -571,6 +572,11 @@ fn tooltip_added(add: On<Add<TooltipOf>>, mut commands: Commands) {
         .observe(move_locked_tooltip)
         .observe(hover_debounce)
         .observe(hover_despawn);
+}
+
+/// If the entity that created the tooltip is gone, then remove the tooltip
+fn tooltip_no_orgin_despawn(despawn: On<Discard<TooltipOf>>, mut commands: Commands) {
+    r!(commands.get_entity(despawn.entity)).try_despawn();
 }
 
 /// Updates the observers to match user settings

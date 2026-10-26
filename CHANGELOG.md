@@ -1,5 +1,9 @@
 # Changelog
 
+## 11.0
+- Positional parameters that is text similar to `{}` in the rust `format!` macro, that updates at runtime
+- On the link item being despawned the tooltip will also despawn
+
 ## 0.10.1
 - Use try versions of bevy entity commands api to prevent crashes
 
