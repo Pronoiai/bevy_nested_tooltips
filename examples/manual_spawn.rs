@@ -106,7 +106,7 @@ fn clicked_me(click: On<PointerClick>, mut commands: Commands) {
 
 // This is how you style a tooltip!
 // If you want to change the default node consider using TooltipReference
-fn style_tooltip(tooltip: On<Add<Tooltip>>, mut commands: Commands) {
+fn style_tooltip(tooltip: On<Add<TooltipOf>>, mut commands: Commands) {
     commands
         .get_entity(tooltip.entity)
         .unwrap()

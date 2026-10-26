@@ -13,14 +13,14 @@ use bevy_time::{Timer, TimerMode};
 use tiny_bail::prelude::*;
 
 use crate::{
-    ActivationMethod, PostionalArguements, TooltipConfiguration, TooltipLinkTimer,
+    ActivationMethod, PositionalArguements, TooltipConfiguration, TooltipLinkTimer,
     TooltipPointerPresence,
 };
 
 /// Place this on a node or text that you want to spawn a Tooltip.
 /// The tooltip displayed will be the contents of [`crate::TooltipMap`].
-#[derive(Debug, Component, PartialEq)]
-#[require(TooltipPointerPresence, PostionalArguements)]
+#[derive(Debug, Component, PartialEq, FromTemplate)]
+#[require(TooltipPointerPresence, PositionalArguements)]
 pub struct TooltipTermLink {
     pub(crate) linked_string: String,
 }
@@ -42,7 +42,7 @@ impl TooltipTermLink {
 /// Should not be created by end users but can safely read if you are interested in recursive case
 /// Recursive case may be treated seperately in future such as shorter hover times.
 #[derive(Clone, Debug, Component, PartialEq)]
-#[require(PostionalArguements)]
+#[require(PositionalArguements)]
 pub struct TooltipTermLinkRecursive {
     pub(crate) parent_entity: Entity,
     pub(crate) linked_string: String,

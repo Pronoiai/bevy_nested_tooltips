@@ -133,13 +133,13 @@ use bevy_ecs::{
     entity::Entity,
     event::{EntityEvent, Event},
     hierarchy::Children,
-    lifecycle::HookContext,
+    lifecycle::{Add, HookContext},
     observer::{Observer, On},
-    query::{AnyOf, Has, Or, QueryData, With},
+    query::{AnyOf, Changed, Has, Or, QueryData, With},
     resource::Resource,
     schedule::{IntoScheduleConfigs, common_conditions::resource_changed},
     system::{Commands, Query, Res},
-    template::{FromTemplate, template},
+    template::template,
     world::{DeferredWorld, World},
 };
 use bevy_scene::{CommandsSceneExt, Scene, bsn};
@@ -164,8 +164,8 @@ use tiny_bail::prelude::*;
 /// An easy way to import commonly used types.
 pub mod prelude {
     pub use super::{
-        ActivationMethod, ArbitraryTooltip, NestedTooltipPlugin, Tooltip, TooltipConfiguration,
-        TooltipMap, TooltipSpawned, TooltipsContent, TooltipsContentDetail, TooltipsData,
+        ActivationMethod, ArbitraryTooltip, NestedTooltipPlugin, TooltipConfiguration, TooltipMap,
+        TooltipOf, TooltipSpawned, TooltipsContent, TooltipsContentDetail, TooltipsData,
         highlight::{TooltipHighlight, TooltipHighlightLink},
         layout::{TooltipStringText, TooltipTextNode, TooltipTitleNode, TooltipTitleText},
         query::{TooltipEntities, TooltipEntitiesParam},
@@ -193,11 +193,12 @@ impl Plugin for NestedTooltipPlugin {
             .init_resource::<TooltipReference>()
             .init_resource::<TooltipMap>()
             .add_systems(PreStartup, setup_component_hooks)
-            .add_systems(Update, tick_timers)
+            .add_systems(Update, (tick_timers, update_positionals))
             .add_systems(
                 Update,
                 update_settings.run_if(resource_changed::<TooltipConfiguration>),
             )
+            .add_observer(tooltip_added)
             .add_observer(spawn_time_done)
             .add_observer(requested_spawn)
             .add_observer(arbitrary_spawn);
@@ -281,16 +282,29 @@ impl Default for TooltipReference {
 /// Indicates this entity is a tooltip and stores what spawned it
 /// The entity that spawned it is blocked from spawning another tooltip
 /// until this one is finished to prevent tooltip jumping around.
-#[derive(Debug, Component)]
+#[derive(Component, Debug)]
 #[require(RelativeCursorPosition, TooltipPointerPresence)]
-pub struct Tooltip {
+#[relationship(relationship_target=TooltipIs)]
+pub struct TooltipOf {
     from_entity: Entity,
 }
 
-impl Tooltip {
+impl TooltipOf {
     /// The entity that spawned this tooltip
     pub fn entity(&self) -> Entity {
         self.from_entity
+    }
+}
+
+/// When a tooltip is triggered this is added to the entity whose link triggered the tooltip
+#[derive(Component, Debug)]
+#[relationship_target(relationship=TooltipOf)]
+pub struct TooltipIs(Entity);
+
+impl TooltipIs {
+    /// The tooltip created by this entity
+    pub fn entity(&self) -> Entity {
+        self.0
     }
 }
 
@@ -448,7 +462,24 @@ impl TooltipsContentDetail {
 
 /// When a positional paramer is in the tooltips content it is replaced by a string from here
 #[derive(Component, Clone, Debug, Default)]
-pub struct PostionalArguements(VecDeque<String>);
+pub struct PositionalArguements(pub VecDeque<String>);
+
+impl<const N: usize> From<[String; N]> for PositionalArguements {
+    fn from(value: [String; N]) -> Self {
+        Self(VecDeque::from(value))
+    }
+}
+
+impl From<VecDeque<String>> for PositionalArguements {
+    fn from(value: VecDeque<String>) -> Self {
+        Self(value)
+    }
+}
+
+/// Text that is generated via positional arguements will have this component
+/// The index is saved so that it can be quickly changed when postitonal arguements are changed
+#[derive(Component, Clone, Debug, Default)]
+pub struct PositionalText;
 
 impl Debug for TooltipsContent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -531,18 +562,15 @@ fn setup_component_hooks(world: &mut World) {
                 }
             }
         });
+}
 
-    world.register_component_hooks::<Tooltip>().on_insert(
-        |mut world, HookContext { entity, .. }| {
-            world
-                .commands()
-                .entity(entity)
-                .observe(toggle_lock)
-                .observe(move_locked_tooltip)
-                .observe(hover_debounce)
-                .observe(hover_despawn);
-        },
-    );
+/// Per entity observer
+fn tooltip_added(add: On<Add<TooltipOf>>, mut commands: Commands) {
+    r!(commands.get_entity(add.entity))
+        .observe(toggle_lock)
+        .observe(move_locked_tooltip)
+        .observe(hover_debounce)
+        .observe(hover_despawn);
 }
 
 /// Updates the observers to match user settings
@@ -600,7 +628,7 @@ struct SpawnLinksQuery {
 #[query_data(mutable)]
 struct HoverWaitQuery {
     entity: Entity,
-    tooltip: &'static Tooltip,
+    tooltip: &'static TooltipOf,
     wait_for: &'static mut TooltipWaitForHover,
 }
 
@@ -638,13 +666,13 @@ fn tick_timers(
 #[derive(QueryData)]
 struct ExistingTooltipQuery {
     entity: Entity,
-    tooltip: &'static Tooltip,
+    tooltip: &'static TooltipOf,
 }
 
 #[derive(QueryData)]
 struct LinksQuery {
     links: AnyOf<(&'static TooltipTermLink, &'static TooltipTermLinkRecursive)>,
-    postional_parameters: &'static PostionalArguements,
+    postional_parameters: &'static PositionalArguements,
 }
 
 /// Triggered when timer is done, fetch additional data to spawn [`Tooltip`].
@@ -720,7 +748,7 @@ fn spawn_time_done(
 
 #[derive(QueryData)]
 struct TooltipDebounceQuery {
-    tooltip: &'static Tooltip,
+    tooltip: &'static TooltipOf,
     debounced: Has<TooltipDebounced>,
     cursor: &'static RelativeCursorPosition,
 }
@@ -755,7 +783,7 @@ fn hover_debounce(
 
 #[derive(QueryData)]
 struct TooltipQuery {
-    tooltip: &'static Tooltip,
+    tooltip: &'static TooltipOf,
     relative_cursor: &'static RelativeCursorPosition,
     has_nested: Has<TooltipsNested>,
     locked: Has<TooltipLocked>,
@@ -954,6 +982,7 @@ fn spawn_tooltip(
 
     let mut text_scene = Vec::with_capacity(tooltip_data.content.len());
 
+    let mut positional_index = 0;
     for item in &tooltip_data.content {
         let next_scene: Box<dyn Scene> = match item {
             TooltipsContent::String(s) => {
@@ -992,12 +1021,17 @@ fn spawn_tooltip(
                 })
             }
             TooltipsContent::PostionalParameter => match positional.pop_front() {
-                Some(s) => Box::new(bsn! {
-                    TooltipStringText
-                    TextSpan::new(s)
-                }),
+                Some(s) => {
+                    positional_index += 1;
+                    Box::new(bsn! {
+                        PositionalText
+                        TooltipStringText
+                        TextSpan::new(s)
+                    })
+                }
                 None => {
-                    error!("Number of postional parameters");
+                    error!("Number of postional parameters {positional_index}");
+                    positional_index += 1;
                     continue;
                 }
             },
@@ -1010,7 +1044,7 @@ fn spawn_tooltip(
         #tooltip
         @additional
         design_node
-        template(move|_|Ok(Tooltip {
+        template(move|_|Ok(TooltipOf {
             from_entity: term_entity,
         }))
         template(move|_|Ok(TooltipWaitForHover {
@@ -1041,46 +1075,7 @@ fn spawn_tooltip(
             }
             Text::new("")
             Children[
-            {tooltip_data.content.iter().map(|item| -> Box<dyn Scene> {
-                    match item {
-                        TooltipsContent::String(s) => {
-                            let s = s.clone();
-                            Box::new(bsn! {
-                                TooltipStringText
-                                TextSpan::new(s)
-                            })
-                        },
-                        TooltipsContent::Term(s) => {
-                            let link = s.link.clone();
-                            let text = s.text.clone();
-                            Box::new(bsn! {
-                                TooltipTermLinkRecursive{
-                                    parent_entity: #tooltip,
-                                    linked_string:{link.clone()}
-                                }
-                                TextSpan::new(text)
-                            })
-                        },
-                        TooltipsContent::Highlight(s) => {
-                            let link = s.link.clone();
-                            let text = s.text.clone();
-                            Box::new(bsn! {
-                                template(move |_|{
-                                    Ok(TooltipHighlightLink(link.clone()))
-                                })
-                                TextSpan::new(text)
-                            })
-                        },
-                        TooltipsContent::Custom(s, scene) => {
-                            let text = s.text.clone();
-                            Box::new(bsn! {
-                                TextSpan::new(text.clone())
-                                @scene(&s.link)
-                            })
-                        },
-                        TooltipsContent::PostionalParameter => todo!(),
-                    }
-                }).collect::<Vec<_>>()}
+                {text_scene}
             ]
         ]
     });
@@ -1125,6 +1120,55 @@ fn position_tooltip(window_query: Query<&Window>, tooltip_reference: &TooltipRef
     design_node
 }
 
+#[derive(QueryData)]
+struct TooltipSpawnerQuery {
+    tooltip: &'static TooltipIs,
+    positionals: &'static PositionalArguements,
+}
+
+#[derive(QueryData)]
+struct TooltipPositionalQuery {
+    tooltip: &'static TooltipOf,
+    children: &'static Children,
+}
+
+#[derive(QueryData)]
+struct TooltipTextNodeQuery {
+    children: &'static Children,
+}
+
+#[derive(QueryData)]
+#[query_data(mutable)]
+struct TooltipsPositionalTextQuery {
+    text: &'static mut TextSpan,
+    positonal_text: &'static PositionalText,
+}
+
+/// When the positionals are updated we update the text
+fn update_positionals(
+    tooltip_spawner_query: Query<TooltipSpawnerQuery, Changed<PositionalArguements>>,
+    tooltip_query: Query<TooltipPositionalQuery>,
+    tooltip_text_node_query: Query<TooltipTextNodeQuery, With<TooltipTextNode>>,
+    mut positional_text_query: Query<TooltipsPositionalTextQuery>,
+) {
+    for tooltip_spawn_item in tooltip_spawner_query {
+        let mut positionals = tooltip_spawn_item.positionals.0.clone();
+
+        let tooltip_item = c!(tooltip_query.get(tooltip_spawn_item.tooltip.0));
+
+        let text_node = c!(tooltip_item
+            .children
+            .iter()
+            .find_map(|item| tooltip_text_node_query.get(*item).ok()));
+
+        for text_entity in text_node.children.iter().copied() {
+            // This will fail on non param children
+            let mut positional_item = cq!(positional_text_query.get_mut(text_entity));
+            positional_item.text.0 = c!(positionals.pop_front());
+        }
+    }
+}
+
 /// Updates the the status of the user cursors to indicate leaving
 fn pointer_left_link(
     hover: On<PointerOut>,
@@ -1143,7 +1187,7 @@ fn pointer_over_link(
 
 #[derive(QueryData)]
 struct LockTooltipQuery {
-    tooltip: &'static Tooltip,
+    tooltip: &'static TooltipOf,
     locked: Has<TooltipLocked>,
 }
 
@@ -1166,7 +1210,7 @@ fn toggle_lock(
 #[derive(QueryData)]
 #[query_data(mutable)]
 struct MoveLockedQuery {
-    tooltip: &'static Tooltip,
+    tooltip: &'static TooltipOf,
     locked: Has<TooltipLocked>,
     node: &'static mut Node,
     computed_node: &'static ComputedNode,
