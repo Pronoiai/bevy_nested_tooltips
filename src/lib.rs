@@ -1159,7 +1159,8 @@ fn update_positionals(
         let text_node = c!(tooltip_item
             .children
             .iter()
-            .find_map(|item| tooltip_text_node_query.get(*item).ok()));
+            .copied()
+            .find_map(|item| tooltip_text_node_query.get(item).ok()));
 
         for text_entity in text_node.children.iter().copied() {
             // This will fail on non param children
