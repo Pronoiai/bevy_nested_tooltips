@@ -10,6 +10,7 @@ use bevy_ecs::{
 use tiny_bail::prelude::*;
 
 use crate::{
+    TooltipCustomLink,
     layout::{TooltipStringText, TooltipTextNode, TooltipTitleNode, TooltipTitleText},
     prelude::TooltipHighlightLink,
     term::TooltipTermLinkRecursive,
@@ -43,6 +44,10 @@ pub struct TooltipEntities {
     /// All entities that highlight panels
     /// That is [`TooltipHighlightLink`].
     pub highlight_texts: Vec<Entity>,
+
+    /// All entities that have custom text
+    /// That is [`TooltipCustomLink`]
+    pub custom_texts: Vec<Entity>,
 }
 
 #[derive(SystemParam)]
@@ -59,6 +64,7 @@ pub struct TooltipEntitiesParam<'w, 's> {
     string_texts_query: Query<'w, 's, Entity, With<TooltipStringText>>,
     links_query: Query<'w, 's, Entity, With<TooltipTermLinkRecursive>>,
     highlights_query: Query<'w, 's, Entity, With<TooltipHighlightLink>>,
+    custom_links_query: Query<'w, 's, Entity, With<TooltipCustomLink>>,
 }
 
 impl<'w, 's> TooltipEntitiesParam<'w, 's> {
@@ -110,6 +116,12 @@ impl<'w, 's> TooltipEntitiesParam<'w, 's> {
                 highlight_texts.push(highlight);
             }
         }
+        let mut custom_texts = Vec::new();
+        for custom in self.custom_links_query {
+            if entity == self.ancestor_query.root_ancestor(custom) {
+                custom_texts.push(custom);
+            }
+        }
         Some(TooltipEntities {
             title_node: r!(title_node),
             title_text: r!(title_text),
@@ -117,6 +129,7 @@ impl<'w, 's> TooltipEntitiesParam<'w, 's> {
             string_texts,
             term_texts: link_texts,
             highlight_texts,
+            custom_texts,
         })
     }
 }

@@ -461,6 +461,10 @@ impl TooltipsContentDetail {
     }
 }
 
+/// Marker for custom text, so users can customise their display
+#[derive(Component, Clone, Debug, Default)]
+pub struct TooltipCustomLink;
+
 /// When a positional paramer is in the tooltips content it is replaced by a string from here
 #[derive(Component, Clone, Debug, Default)]
 pub struct PositionalArguements(pub VecDeque<String>);
@@ -1022,6 +1026,7 @@ fn spawn_tooltip(
             TooltipsContent::Custom(s, scene) => {
                 let text = s.text.clone();
                 Box::new(bsn! {
+                    TooltipCustomLink
                     TextSpan::new(text.clone())
                     @scene(&s.link)
                 })
@@ -1180,7 +1185,10 @@ fn update_positionals(
 fn pointer_left_link(
     hover: On<PointerOut>,
     mut prescence_query: Query<&mut TooltipPointerPresence>,
+    mut commands: Commands,
 ) {
+    //stops crash when entity no longer exists
+    rq!(commands.get_entity(hover.entity));
     let mut prescene_item = r!(prescence_query.get_mut(hover.entity));
     *prescene_item = TooltipPointerPresence::Left;
 }
