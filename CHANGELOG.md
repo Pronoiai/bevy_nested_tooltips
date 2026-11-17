@@ -5,6 +5,7 @@
 - On the link item being despawned the tooltip will also despawn
 - Custom texts, now retrieved in layout
 - fix crash on pointer out
+- handle ui scaling
 
 ## 0.10.1
 - Use try versions of bevy entity commands api to prevent crashes

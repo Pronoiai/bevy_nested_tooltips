@@ -156,7 +156,7 @@ use bevy_text::TextSpan;
 use bevy_time::{Time, Timer, TimerMode};
 use bevy_ui::{
     ComputedNode, Display, GlobalZIndex, GridAutoFlow, Node, PositionType, RelativeCursorPosition,
-    UiRect, Val, widget::Text,
+    UiRect, UiScale, Val, widget::Text,
 };
 use bevy_window::Window;
 use tiny_bail::prelude::*;
@@ -695,6 +695,7 @@ fn spawn_time_done(
     tooltips_map: Res<TooltipMap>,
     tooltip_reference: Res<TooltipReference>,
     tooltip_configuration: Res<TooltipConfiguration>,
+    ui_scale: Res<UiScale>,
     mut commands: Commands,
 ) {
     let term_entity = term.term_entity;
@@ -752,6 +753,7 @@ fn spawn_time_done(
         window_query,
         &tooltip_reference,
         &tooltip_configuration,
+        &ui_scale,
         &mut commands,
     );
 }
@@ -840,6 +842,7 @@ fn middle_mouse_spawn(
     tooltips_map: Res<TooltipMap>,
     tooltip_reference: Res<TooltipReference>,
     tooltip_configuration: Res<TooltipConfiguration>,
+    ui_scale: Res<UiScale>,
     mut commands: Commands,
 ) {
     // Stop tooltip lock being triggered
@@ -902,10 +905,12 @@ fn middle_mouse_spawn(
         window_query,
         &tooltip_reference,
         &tooltip_configuration,
+        &ui_scale,
         &mut commands,
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn requested_spawn(
     tooltip_spawn: On<SpawnTooltip>,
     existing_tooltips_query: Query<ExistingTooltipQuery>,
@@ -913,6 +918,7 @@ fn requested_spawn(
     tooltips_map: Res<TooltipMap>,
     tooltip_reference: Res<TooltipReference>,
     tooltip_configuration: Res<TooltipConfiguration>,
+    ui_scale: Res<UiScale>,
     mut commands: Commands,
 ) {
     // Prevent the same entity having two existing tooltips spawned
@@ -938,6 +944,7 @@ fn requested_spawn(
         window_query,
         &tooltip_reference,
         &tooltip_configuration,
+        &ui_scale,
         &mut commands,
     );
 }
@@ -948,6 +955,7 @@ fn arbitrary_spawn(
     window_query: Query<&Window>,
     tooltip_reference: Res<TooltipReference>,
     tooltip_configuration: Res<TooltipConfiguration>,
+    ui_scale: Res<UiScale>,
     mut commands: Commands,
 ) {
     // Delete any prior tooltips
@@ -967,6 +975,7 @@ fn arbitrary_spawn(
         window_query,
         &tooltip_reference,
         &tooltip_configuration,
+        &ui_scale,
         &mut commands,
     );
 }
@@ -983,9 +992,10 @@ fn spawn_tooltip(
     window_query: Query<&Window>,
     tooltip_reference: &TooltipReference,
     tooltip_configuration: &TooltipConfiguration,
+    ui_scale: &UiScale,
     commands: &mut Commands,
 ) {
-    let design_node = position_tooltip(window_query, tooltip_reference);
+    let design_node = position_tooltip(window_query, tooltip_reference, ui_scale);
 
     let wait_for = tooltip_configuration.interaction_wait_for_time;
     let title = tooltip_data.title.clone();
@@ -1099,29 +1109,36 @@ fn spawn_tooltip(
 }
 
 /// Poistions the [`Tooltip`] relative to the cursor.
-fn position_tooltip(window_query: Query<&Window>, tooltip_reference: &TooltipReference) -> Node {
+fn position_tooltip(
+    window_query: Query<&Window>,
+    tooltip_reference: &TooltipReference,
+    ui_scale: &UiScale,
+) -> Node {
     let mut design_node = tooltip_reference.tooltip_node.clone();
     let window = r!(window_query.single());
     let cursor_position = r!(window.cursor_position());
 
     let window_size = window.size();
     let half_window_size = window_size / 2.0;
-    let offset = 8.0;
+    let scale = ui_scale.0;
+
+    let offset = 8.0 / scale;
+
     let (left, right) = if cursor_position.x > half_window_size.x {
         (
             Val::Auto,
-            Val::Px(window_size.x - cursor_position.x + offset),
+            Val::Px((window_size.x - cursor_position.x) / scale + offset),
         )
     } else {
-        (Val::Px(cursor_position.x + offset), Val::Auto)
+        (Val::Px(cursor_position.x / scale + offset), Val::Auto)
     };
     let (top, bottom) = if cursor_position.y > half_window_size.y {
         (
             Val::Auto,
-            Val::Px(window_size.y - cursor_position.y + offset),
+            Val::Px((window_size.y - cursor_position.y) / scale + offset),
         )
     } else {
-        (Val::Px(cursor_position.y + offset), Val::Auto)
+        (Val::Px((cursor_position.y) / scale + offset), Val::Auto)
     };
 
     design_node.left = left;
